@@ -99,7 +99,7 @@ scphasedcn: normal mode paints each cell's reportable calls (arm, chromosome, 5-
 events) on 1 Mb windows over the neutral state, as allele-specific copy number (loss 1:0, gain
 2:1, CN-LOH 2:0, ...; a male's X is haploid); tumour mode paints each assigned cell with its
 clone's segments. With the extraction folder beside it (`extract/`, or the `dir` in the run
-notes), per-cell read counts, the haplotype-A fraction and a per-bin logR are added (each
+notes), per-cell read counts, the BAF (haplotype B / (A + B), shown under the profile in the allele-specific view) and a per-bin logR are added (each
 window's read share against the null cells' median, or the reference pool's in tumour mode,
 times its normal copy number, relative to the cell's mean copy number), so the cell profile
 shows the bins around the calls as for the other tools. Its calls are calibrated

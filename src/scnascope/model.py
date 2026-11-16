@@ -50,6 +50,7 @@ class Semantics(str, Enum):
     BAF = "baf"  # B-allele frequency, 0..1, balanced at 0.5
     PROBABILITY = "probability"  # posterior 0..1
     COUNT = "count"  # read counts and other non-negative counts
+    ALLELE_COUNT = "allele_count"  # reads (or SNPs) informative for a BAF: its evidence
 
 
 REQUIRED_VAR = ("chr", "start", "end")

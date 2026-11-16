@@ -9,7 +9,7 @@ import { DlIcon, Slider, Switch } from "./widgets";
 const LIST_CAP = 400;
 const SEM_LABEL: Record<string, string> = {
   integer_cn: "copy number", allele_cn: "allele CN", ternary_state: "gain / loss", continuous_ratio: "log ratio",
-  continuous_cn: "CN scale", ratio: "ratio", baf: "BAF", probability: "probability", count: "counts",
+  continuous_cn: "CN scale", ratio: "ratio", baf: "BAF", probability: "probability", count: "counts", allele_count: "BAF evidence",
 };
 
 /** Open Cell QC at the filters (optionally at one metric's card). */
@@ -64,7 +64,7 @@ export const Sidebar = forwardRef<HTMLInputElement>(function Sidebar(_, searchRe
   // read counts, ...) stay in the cell profile. Other modalities list every layer.
   const others = meta.modality === "scDNA"
     ? []
-    : meta.layers.filter((l) => l.name !== totalView && !(hasAS && (l.name === "major_cn" || l.name === "minor_cn")));
+    : meta.layers.filter((l) => l.name !== totalView && l.semantics !== "allele_count" && l.name !== d.bafLayer && !(hasAS && (l.name === "major_cn" || l.name === "minor_cn")));
   const annotCols = Object.keys(meta.obs_kinds).filter((c) => meta.obs_kinds[c] === "categorical");
 
   const list = useMemo(() => {
@@ -79,7 +79,7 @@ export const Sidebar = forwardRef<HTMLInputElement>(function Sidebar(_, searchRe
         <h3>Copy number</h3>
         {hasAS && (
           <div className="seg">
-            <button className={isAllele ? "" : s.view === totalView ? "on" : ""} onClick={() => s.setView(totalView)}>Total</button>
+            <button className={isAllele || s.view !== totalView ? "" : "on"} onClick={() => s.setView(totalView)}>Total</button>
             <button className={isAllele ? "on" : ""} onClick={() => s.setView(ALLELE)}>Allele-specific</button>
           </div>
         )}

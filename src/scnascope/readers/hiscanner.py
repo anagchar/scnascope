@@ -8,8 +8,10 @@ Reads the output directory of the HiScanner pipeline (or its ``final_calls`` fol
 - ``final_calls/<cell>_seg.txt`` etc. are segment tables and are not needed.
 
 Layers: ``total_cn`` (CN), ``rdr``, ``cn_scale`` (RDR × gamma: the bins on the copy-number
-scale), ``read_counts`` (OBS). Cells: ``gamma``. When cells were binned differently, every cell
-is projected onto the most common bin grid.
+scale), ``read_counts`` (OBS); runs of the standard (RDR + BAF) pipeline also give ``baf``
+(B / (A + B)) and ``baf_n`` (A + B reads), and its allele-specific calls (``CN`` "a|b",
+``CN_A``/``CN_B``) ``major_cn``/``minor_cn``. Cells: ``gamma``. When cells were binned
+differently, every cell is projected onto the most common bin grid.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from ..genome import segments_to_bins
 from ..model import CNVDataset, Modality, Semantics, chr_sort_key
 from . import Reader, register
 
-SKIP = re.compile(r"_(seg|seg_merged|input_table)\.txt$")
+SKIP = re.compile(r"_(seg|seg_merged|seg_initial_anno|input_table)\.txt$|^all_")
 HEAD = ("CHROM", "START", "END", "RDR", "CN")
 
 
@@ -63,6 +65,8 @@ def read_hiscanner(path: Path, genome: str = "hg38") -> CNVDataset:
     # one small file per cell: read them in parallel (much faster on network drives)
     def read(p: Path) -> pd.DataFrame | None:
         t = pd.read_csv(p, sep="\t", dtype={"CHROM": str})
+        if "CN_total" in t:  # standard pipeline: CN is "a|b", the total and alleles have columns
+            t["CN"] = pd.to_numeric(t["CN_total"], errors="coerce")
         return t if all(h in t.columns for h in HEAD) else None
 
     with ThreadPoolExecutor(max_workers=8) as pool:  # more threads only slow network drives
@@ -82,6 +86,14 @@ def read_hiscanner(path: Path, genome: str = "hg38") -> CNVDataset:
     key = pd.MultiIndex.from_frame(bins)
 
     cols = {"total_cn": "CN", "rdr": "RDR", "read_counts": "OBS"}
+    # the standard (RDR + BAF) pipeline adds the phased allele reads A and B per bin
+    allelic = all({"A", "B"} <= set(t.columns) for t in tables.values())
+    if allelic:
+        cols |= {"_a": "A", "_b": "B"}
+    # ... and allele-specific calls CN_A / CN_B
+    as_calls = all({"CN_A", "CN_B"} <= set(t.columns) for t in tables.values())
+    if as_calls:
+        cols |= {"_cna": "CN_A", "_cnb": "CN_B"}
     nb = len(bins)
     layers = {k: np.full((len(cells), nb), np.nan, dtype=np.float32) for k in cols}
     gamma = np.full(len(cells), np.nan)
@@ -104,12 +116,24 @@ def read_hiscanner(path: Path, genome: str = "hg38") -> CNVDataset:
                 if src in proj:
                     layers[k][i] = proj[src][0]
     layers["cn_scale"] = (layers["rdr"] * gamma[:, None]).astype(np.float32)
+    if as_calls:
+        ca, cb = layers.pop("_cna"), layers.pop("_cnb")
+        layers["major_cn"], layers["minor_cn"] = np.fmax(ca, cb), np.fmin(ca, cb)
+    if allelic:  # BAF as B / (A + B), and the reads behind it
+        a_, b_ = layers.pop("_a"), layers.pop("_b")
+        with np.errstate(invalid="ignore", divide="ignore"):
+            layers["baf"] = np.where(a_ + b_ > 0, b_ / (a_ + b_), np.nan).astype(np.float32)
+        layers["baf_n"] = (a_ + b_).astype(np.float32)
     sem = {
         "total_cn": Semantics.INTEGER_CN,
         "rdr": Semantics.RATIO,
         "read_counts": Semantics.COUNT,
         "cn_scale": Semantics.CONTINUOUS_CN,
     }
+    if allelic:
+        sem |= {"baf": Semantics.BAF, "baf_n": Semantics.ALLELE_COUNT}
+    if as_calls:
+        sem |= {"major_cn": Semantics.ALLELE_CN, "minor_cn": Semantics.ALLELE_CN}
     obs = pd.DataFrame({"gamma": gamma}, index=cells)
     root = d.parent if d.name == "final_calls" else d
     return CNVDataset.build(

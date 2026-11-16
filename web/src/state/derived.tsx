@@ -20,6 +20,9 @@ export interface Derived {
   countLayer: string | null;
   /** per-bin values to plot on the copy-number scale: [layer, how] */
   binsLayer: [string, "cn" | "logr"] | null;
+  /** per-bin BAF and its evidence (reads or SNPs), for the cell profile's BAF panel */
+  bafLayer: string | null;
+  bafNLayer: string | null;
   hasAS: boolean;
   hasCi: boolean;
   binSizeMb: number;
@@ -86,7 +89,9 @@ export function DerivedProvider({ meta, children }: { meta: Meta; children: Reac
     const cellTypes = ct && meta.obs_kinds.cell_type === "categorical"
       ? [...new Set(ct.filter((v): v is string => v != null).map(String))].sort()
       : [];
-    return { sem, totalLayer, countLayer, binsLayer, hasAS, hasCi, binSizeMb, cellTypes };
+    const bafLayer = pickLayer(meta, "baf", ["baf"]);
+    const bafNLayer = pickLayer(meta, "allele_count", ["baf_n"]);
+    return { sem, totalLayer, countLayer, binsLayer, bafLayer, bafNLayer, hasAS, hasCi, binSizeMb, cellTypes };
   }, [meta]);
 
   const minBinsNow = minSegmentMb > 0 ? Math.max(1, Math.ceil(minSegmentMb / base.binSizeMb)) : 0;

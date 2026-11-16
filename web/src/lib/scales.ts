@@ -47,7 +47,8 @@ export function scaleFor(sem: Semantics, opts: ScaleOpts = {}): Scale {
       return { kind: "linear", lo: 0, hi: 1, stops: forTheme(BAF, dark, BAF[2]), labels: ["0", "0.5", "1"], baseline: 0.5 };
     case "probability":
       return { kind: "linear", lo: 0, hi: 1, stops: SEQUENTIAL, labels: ["0", "1"], baseline: 0 };
-    case "count": {
+    case "count":
+    case "allele_count": {
       const hi = opts.countMax && opts.countMax > 0 ? opts.countMax : 1;
       return { kind: "linear", lo: 0, hi, stops: SEQUENTIAL, labels: ["0", String(Math.round(hi))], baseline: 0 };
     }

@@ -215,9 +215,11 @@ const ProfilePlot = memo(forwardRef<HTMLCanvasElement, { cell: CellDetail; heigh
       ? `major|minor <b>${L.major_cn[b] ?? "–"}|${L.minor_cn[b] ?? "–"}</b>`
       : prof ? `${esc(callLayer === totalLayer ? "copy number" : callLayer!)} <b>${prof[b] ?? "–"}</b>` : "";
     const rd = d.countLayer ? L[d.countLayer]?.[b] : null;
+    const hp = isAS && d.bafLayer && d.bafNLayer && L[d.bafLayer] && L[d.bafNLayer] ? hapReads(L[d.bafLayer], L[d.bafNLayer], b) : null;
     tip(e, `<span class="k">${chrLabel(B.chr[b])}:${fmtBp(B.start[b])}–${fmtBp(B.end[b])}</span>${line ? "<br>" + line : ""}` +
-      (raw && raw[b] != null ? `<br><span class="k">${cnScale ? "bin on the CN scale" : esc(view)}</span> ${fmt(raw[b])}` : "") +
-      (rd != null ? `<br><span class="k">reads</span> ${rd}` : ""));
+      (raw && raw[b] != null && !cnScale ? `<br><span class="k">${esc(view)}</span> ${fmt(raw[b])}` : "") +
+      (rd != null ? `<br><span class="k">reads</span> ${rd}` : "") +
+      (hp ? `<br><span class="k">hap1 | hap2 reads</span> ${hp[0]} | ${hp[1]}` : ""));
   };
 
   const items: [string, string, string][] = [];
@@ -237,6 +239,105 @@ const ProfilePlot = memo(forwardRef<HTMLCanvasElement, { cell: CellDetail; heigh
     </div>
   );
 }));
+
+/* ── BAF: per-bin allele fraction, with the BAF the allele-specific calls expect ── */
+function BafPlot({ baf, n, major, minor, height = 180 }: { baf: Vals; n: Vals | null; major: Vals | null; minor: Vals | null; height?: number }) {
+  const { meta } = useDerived();
+  const zoom = useStore((s) => s.zoom);
+  const theme = useStore((s) => s.theme);
+  const box = useRef<HTMLDivElement>(null);
+  const cv = useRef<HTMLCanvasElement>(null);
+  const width = useWidth(box);
+  const B = meta.bins, genomeMax = B.end_cum[meta.n_bins - 1];
+  const [gx0, gx1] = zoom?.x ?? [0, genomeMax];
+  const T = 18, BOT = 6;
+  useEffect(() => {
+    const c = cv.current;
+    if (!c) return;
+    const g = fit(c, width, height);
+    g.clearRect(0, 0, width, height);
+    const plotW = width - PR.l - PR.r, plotH = height - T - BOT;
+    const xS = (v: number) => PR.l + ((v - gx0) / (gx1 - gx0)) * plotW;
+    const Y = (v: number) => T + plotH - Math.max(0, Math.min(1, v)) * plotH;
+    const [b0, b1] = binRange(B.start_cum, B.end_cum, gx0, gx1);
+    g.font = `11px ${FONT}`; g.lineWidth = 1; g.fillStyle = css("--ink3"); g.textAlign = "right"; g.textBaseline = "middle";
+    for (const [v, t] of [[0, "0"], [0.2, "0.2"], [0.4, "0.4"], [0.5, "0.5"], [0.6, "0.6"], [0.8, "0.8"], [1, "1"]] as const) {
+      g.strokeStyle = css(v === 0.5 ? "--ink3" : "--grid"); g.setLineDash(v === 0.5 ? [5, 4] : []);
+      g.beginPath(); g.moveTo(PR.l, Y(v)); g.lineTo(PR.l + plotW, Y(v)); g.stroke();
+      g.fillText(t, PR.l - 8, Y(v));
+    }
+    g.setLineDash([]);
+    drawChromosomes(g, meta, xS, gx0, gx1, T, plotH, null);
+    g.save(); g.beginPath(); g.rect(PR.l, 0, plotW, height); g.clip();
+    // point size from the evidence (reads or SNPs), against the cell's own 95th percentile
+    const ev: number[] = [];
+    if (n) for (let i = b0; i < b1; i++) { const v = n[i]; if (v != null && v > 0) ev.push(v); }
+    ev.sort((a, b) => a - b);
+    const top = ev.length ? ev[Math.floor(0.95 * (ev.length - 1))] : 1;
+    g.fillStyle = css("--series1"); g.globalAlpha = 0.6;
+    for (let i = b0; i < b1; i++) {
+      const v = baf[i];
+      if (v == null || !Number.isFinite(v)) continue;
+      const w = n ? n[i] ?? 0 : 1;
+      const r = n ? 1.2 + 2.8 * Math.sqrt(Math.min(1, w / Math.max(1, top))) : 1.8;
+      g.beginPath(); g.arc(xS((B.start_cum[i] + B.end_cum[i]) / 2), Y(v), r, 0, 7); g.fill();
+    }
+    g.globalAlpha = 1;
+    // dotted: the BAF the allele-specific state predicts, minor / total and major / total
+    if (major && minor) {
+      const key: Vals = major.map((a, i) => (a == null || minor[i] == null ? null : (a as number) * 1000 + (minor[i] as number)));
+      g.strokeStyle = css("--ink"); g.lineWidth = 1.4; g.setLineDash([2, 3]); g.beginPath();
+      for (const [s, e, k] of runsOf(B.chr, key)) {
+        const a = Math.floor(k / 1000), b = k % 1000, t = a + b;
+        if (!(t > 0) || a === b) continue;
+        for (const f of [b / t, a / t]) { g.moveTo(xS(B.start_cum[s]), Y(f)); g.lineTo(xS(B.end_cum[e - 1]), Y(f)); }
+      }
+      g.stroke(); g.setLineDash([]);
+    }
+    g.restore();
+    g.fillStyle = css("--ink2"); g.textAlign = "left"; g.textBaseline = "alphabetic";
+    g.fillText("BAF per bin", PR.l, 12);
+    g.fillStyle = css("--ink3"); g.textAlign = "right";
+    g.fillText(major && minor ? "dotted: BAF expected from the allele-specific calls" + (n ? " · size: reads" : "") : n ? "size: reads" : "", PR.l + plotW, 12);
+  }, [baf, n, major, minor, width, height, gx0, gx1, meta, B, theme]);
+  const move = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const b = binUnder(e, width, gx0, gx1, B.end_cum);
+    tip(b == null ? null : e, b == null ? "" : bafTip(meta, b, baf, n, major, minor));
+  };
+  return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} onMouseMove={move} onMouseLeave={() => tip(null)} /></div>;
+}
+
+/** hap1 / hap2 reads of a bin from its BAF (hap2 / (hap1 + hap2)) and its reads, or null. */
+function hapReads(baf: Vals, n: Vals | null, i: number): [number, number] | null {
+  const b = baf[i], t = n ? n[i] : null;
+  if (b == null || t == null || !Number.isFinite(b) || !(t > 0)) return null;
+  const h2 = Math.round(b * t);
+  return [t - h2, h2];
+}
+
+/** Tooltip for a bin of the BAF panel: position, BAF, hap1 | hap2 reads
+ *  and the call with the BAF it predicts. */
+function bafTip(meta: Meta, b: number, baf: Vals, n: Vals | null, major: Vals | null, minor: Vals | null): string {
+  const B = meta.bins;
+  const v = baf[b], h = hapReads(baf, n, b);
+  let out = `<span class="k">${chrLabel(B.chr[b])}:${fmtBp(B.start[b])}–${fmtBp(B.end[b])}</span>`;
+  out += `<br><span class="k">BAF</span> <b>${v != null && Number.isFinite(v) ? fmt(v, 2) : "–"}</b>`;
+  if (h) out += `<br><span class="k">hap1 | hap2 reads</span> <b>${h[0]} | ${h[1]}</b>`;
+  else if (n && n[b] != null) out += `<br><span class="k">reads</span> ${n[b]}`;
+  const a = major?.[b], c = minor?.[b];
+  if (a != null && c != null) {
+    const t = a + c;
+    out += `<br><span class="k">major|minor</span> ${a}|${c}` + (t > 0 ? ` <span class="k">· expected BAF</span> ${a === c ? "0.5" : `${fmt(c / t, 2)} or ${fmt(a / t, 2)}`}` : "");
+  }
+  return out;
+}
+
+/** The bin under the mouse in a panel drawn with the profile's margins and zoom. */
+function binUnder(e: React.MouseEvent<HTMLCanvasElement>, width: number, gx0: number, gx1: number, endCum: ArrayLike<number>): number | null {
+  const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, plotW = width - PR.l - PR.r;
+  if (x < PR.l || x > PR.l + plotW) return null;
+  return binAt(endCum, gx0 + ((x - PR.l) / plotW) * (gx1 - gx0));
+}
 
 /* ── read depth: per-bin read counts on the profile's x scale ── */
 function ReadDepthPlot({ reads, height = 120 }: { reads: Vals; height?: number }) {
@@ -344,6 +445,10 @@ export function ProfileCard() {
           : !cell ? <div className="empty">Loading…</div>
           : <>
             <ProfilePlot ref={plot} cell={cell} />
+            {view === ALLELE && d.bafLayer && cell.layers[d.bafLayer] && (
+              <BafPlot baf={cell.layers[d.bafLayer]} n={d.bafNLayer ? cell.layers[d.bafNLayer] ?? null : null}
+                major={cell.layers.major_cn ?? null} minor={cell.layers.minor_cn ?? null} />
+            )}
             {reads && <ReadDepthPlot reads={reads} />}
           </>}
       </div>

@@ -62,3 +62,23 @@ def test_exported_dendrogram_kept_and_allele_one_added():
     c0 = cells[0]
     assert ds.adata.obs.loc[c0, "mapd"] == d["quality"][c0]["mapd"]
     assert np.isfinite(ds.adata.obs["spikiness"]).all()
+
+
+def test_baf_from_the_export(tmp_path):
+    """baf / baf_n / baf_source (extract_baf() in the R exporter) become the BAF layers."""
+    d = raw()
+    cells = list(d["profiles"])
+    nb = len(d["bins"]["chr"])
+    d["baf"] = {c: [0.5 if j % 3 else None for j in range(nb)] for c in cells[:2]}
+    d["baf_n"] = {c: [10] * nb for c in cells[:2]}
+    d["baf_source"] = "haplotype reads (hap2 / (hap1 + hap2))"
+    p = tmp_path / "x.json"
+    p.write_text(json.dumps(d))
+    ds = load(p)
+    assert ds.semantics["baf"] is Semantics.BAF
+    assert ds.semantics["baf_n"] is Semantics.ALLELE_COUNT
+    assert ds.adata.uns["baf_source"].startswith("haplotype reads")
+    B = ds.layer("baf")
+    assert B[0, 1] == 0.5 and np.isnan(B[0, 0]) and np.isnan(B[2]).all()  # cells without BAF
+    back = prepare(ds)  # the evidence is not taken for read counts
+    assert "n_reads_total" not in back.adata.obs or "read_counts" in ds.layer_names

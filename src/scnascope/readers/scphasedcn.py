@@ -14,8 +14,9 @@ cell's reportable calls over the neutral state (broad regions first, nested ones
 tumour mode paints each assigned cell with its clone's segments (unassigned cells stay empty).
 
 When the extraction folder is found (``extract/`` beside the caller folder, or the ``dir`` in
-the run notes), its 100 kb bins add ``read_counts`` and ``hap_a_frac`` (haplotype-A fraction
-of the phased molecules, a BAF) summed to the same windows, and ``logr``: each window's depth
+the run notes), its 100 kb bins add ``read_counts``, ``baf`` (haplotype B / (A + B) of the
+phased molecules, as ASCAT.sc's hap2 / (hap1 + hap2)) with ``baf_n`` (the molecules behind it)
+summed to the same windows, and ``logr``: each window's depth
 against the null cells (normal mode) or the reference pool (tumour mode), relative to the
 cell's mean copy number, as the other tools' logR.
 """
@@ -246,7 +247,12 @@ def _read_caller(
     if ext is not None:
         extra = _depth(ext, cells, bins)
         layers |= extra
-        sem |= {k: (Semantics.COUNT if k == "read_counts" else Semantics.BAF) for k in extra}
+        kind = {
+            "read_counts": Semantics.COUNT,
+            "baf": Semantics.BAF,
+            "baf_n": Semantics.ALLELE_COUNT,
+        }
+        sem |= {k: kind[k] for k in extra}
         ref = _reference_cells(cells_t, tumour)
         base = np.where(hap, 1.0, 2.0)
         layers["logr"] = _logr(extra["read_counts"], ref, base, layers["total_cn"])
@@ -319,7 +325,7 @@ def _logr(R: np.ndarray, ref: np.ndarray, base: np.ndarray, total: np.ndarray) -
 
 
 def _depth(ext: Path, cells: list[str], bins: pd.DataFrame) -> dict[str, np.ndarray]:
-    """Read counts and the haplotype-A fraction of `ext`/bins_*.h5ad, summed to `bins`."""
+    """Read counts and haplotype BAF (and its molecules) of `ext`/bins_*.h5ad, on `bins`."""
     import anndata as ad
     import scipy.sparse as sp
 
@@ -349,7 +355,10 @@ def _depth(ext: Path, cells: list[str], bins: pd.DataFrame) -> dict[str, np.ndar
     if "hapA" in a.layers and "hapB" in a.layers:
         ha, hb = summed(a.layers["hapA"]), summed(a.layers["hapB"])
         with np.errstate(invalid="ignore", divide="ignore"):
-            out["hap_a_frac"] = np.where(ha + hb > 0, ha / (ha + hb), np.nan)
+            # BAF as ASCAT.sc's haplotype mode gives it, hap2 / (hap1 + hap2); its evidence is
+            # the phased molecules (votes) behind it
+            out["baf"] = np.where(ha + hb > 0, hb / (ha + hb), np.nan)
+            out["baf_n"] = ha + hb
     return out
 
 

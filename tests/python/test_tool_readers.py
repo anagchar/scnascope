@@ -54,6 +54,8 @@ def test_chisel(tmp_path):
     np.testing.assert_array_equal(ds.layer("minor_cn")[2], [2, 1, 0])
     np.testing.assert_array_equal(ds.layer("hap_a_cn")[2], [2, 1, 0])
     assert ds.semantics["baf"] is Semantics.BAF and ds.semantics["rdr"] is Semantics.RATIO
+    # the reads behind the BAF: A_COUNT + B_COUNT (5 + 5 in every bin)
+    assert ds.semantics["baf_n"] is Semantics.ALLELE_COUNT and (ds.layer("baf_n") == 10).all()
     assert a.obs["clone"].tolist()[0] == "Clone1" and a.obs["clone"].isna().tolist()[1]
     assert "allele" in ds.dendrograms
 
@@ -91,6 +93,36 @@ def test_hiscanner(tmp_path):
     np.testing.assert_array_equal(ds.layer("total_cn")[2], [2, 4, 2])  # projected by midpoint
     np.testing.assert_allclose(ds.layer("cn_scale")[0], [2, 3, 2])  # RDR × gamma
     assert a.uns["cells_projected_to_grid"] == ["SRR3"]
+
+
+def test_hiscanner_standard_pipeline_baf(tmp_path):
+    """The standard (RDR + BAF) pipeline: phased allele reads A, B and allele-specific calls
+    (CN written "a|b", with CN_A / CN_B / CN_total)."""
+    d = tmp_path / "final_calls"
+    d.mkdir()
+    head = (
+        "CHROM\tSTART\tEND\tA\tB\tN\tTOTAL\tpBAF\tBAF\tRDR\tOBS\tEXP\tRDR_MEAN"
+        "\tCN\tCN_A\tCN_B\tCN_total\tgamma\n"
+    )
+    rows = [
+        "chr1\t1\t1000000\t3\t1\t2\t4\t0.25\t0.25\t1\t50\t50\t1\t2|1\t2.0\t1.0\t3.0\t2.0\n",
+        "chr1\t1000001\t2000000\t0\t0\t0\t0\t0\t0\t1\t50\t50\t1\t1|1\t1.0\t1.0\t2.0\t2.0\n",
+    ]
+    for cell in ("C1", "C2"):
+        (d / f"{cell}.txt").write_text(head + "".join(rows))
+    (d / "all_cells_bins.txt").write_text(head + "".join(rows))  # a summary, not a cell
+    ds = load(tmp_path)
+    assert ds.adata.obs_names.tolist() == ["C1", "C2"]
+    np.testing.assert_allclose(ds.layer("baf")[0, 0], 0.25)  # B / (A + B)
+    assert np.isnan(ds.layer("baf")[0, 1]) and ds.layer("baf_n")[0].tolist() == [4, 0]
+    assert ds.layer("total_cn")[0].tolist() == [3, 2]  # CN_total, not the "a|b" string
+    assert ds.layer("major_cn")[0].tolist() == [2, 1] and ds.layer("minor_cn")[0].tolist() == [1, 1]
+    assert ds.semantics["baf_n"] is Semantics.ALLELE_COUNT and "_a" not in ds.layer_names
+
+
+def test_hiscanner_rdr_only_has_no_baf(tmp_path):
+    write_hiscanner(tmp_path)
+    assert "baf" not in load(tmp_path).layer_names
 
 
 @pytest.mark.skipif(not shutil.which("Rscript"), reason="needs R")

@@ -8,7 +8,8 @@ Reads the output directory of ``chisel`` (or ``calls/calls.tsv`` itself):
 - ``clones/mapping.tsv`` (optional): ``#CELL CLUSTER CLONE``; ``None`` = no clone.
 
 Layers: ``total_cn`` (a + b), ``major_cn``/``minor_cn`` (max/min of the two haplotypes),
-``hap_a_cn``/``hap_b_cn`` (the haplotypes as phased), ``rdr``, ``baf``, ``read_counts``
+``hap_a_cn``/``hap_b_cn`` (the haplotypes as phased), ``rdr``, ``baf`` (B / (A + B)) with
+``baf_n`` (A_COUNT + B_COUNT, the reads behind it), ``read_counts``
 (``COUNT``), and ``cn_scale``: RDR on the copy-number scale, RDR × the cell's mean copy
 number / its mean RDR, so bins can be drawn around the calls.
 """
@@ -84,6 +85,11 @@ def read_chisel(path: Path, genome: str = "hg38") -> CNVDataset:
         "baf": _matrix(row, col, df["BAF"].to_numpy(np.float32), shape),
         "read_counts": _matrix(row, col, df["COUNT"].to_numpy(np.float32), shape),
     }
+    if {"A_COUNT", "B_COUNT"} <= set(df.columns):  # the reads behind the BAF (B / (A + B))
+        ab_n = pd.to_numeric(df["A_COUNT"], errors="coerce") + pd.to_numeric(
+            df["B_COUNT"], errors="coerce"
+        )
+        layers["baf_n"] = _matrix(row, col, ab_n.to_numpy(np.float32), shape)
     sem = {
         "total_cn": Semantics.INTEGER_CN,
         "major_cn": Semantics.ALLELE_CN,
@@ -95,6 +101,8 @@ def read_chisel(path: Path, genome: str = "hg38") -> CNVDataset:
         "baf": Semantics.BAF,
         "read_counts": Semantics.COUNT,
     }
+    if "baf_n" in layers:
+        sem["baf_n"] = Semantics.ALLELE_COUNT
 
     first = df.drop_duplicates("CELL").set_index("CELL")
     obs = pd.DataFrame(index=cells)

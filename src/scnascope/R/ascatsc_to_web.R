@@ -213,6 +213,68 @@ extract_read_counts <- function(res, cell_names, n_bins,
 }
 
 # =============================================================================
+# HELPER: per-bin BAF for the BAF view. Two sources, best first:
+#  1. haplotype mode (haplotagged reads, getCoverageTrack.10XBAM(hp_tag="HP")):
+#     hap1 / hap2 read counts per bin in the cell's track -> BAF = hap2 / (hap1 + hap2),
+#     on the copy-number bins themselves; the evidence is hap1 + hap2 reads
+#  2. SNP mode (getAS_CNA()): res$allProfiles_AS[[cell]]$bin_baf, BAF per SNP bin
+#     (BAF_noswitch, unfolded, when present) put on the copy-number bin whose midpoint
+#     it covers; the evidence is the bin's total_reads (or nSNP)
+# Returns list(baf, n, source) of per-cell vectors over `bins`, or NULL.
+# =============================================================================
+
+extract_baf <- function(res, cell_names, bins) {
+  n_bins <- nrow(bins)
+  # 1. haplotype counts in the tracks
+  for (src in c("allTracks.processed", "allTracks")) {
+    tracks <- res[[src]]
+    if (is.null(tracks)) next
+    out <- lapply(cell_names, function(cell) {
+      tr <- tracks[[cell]]
+      if (is.null(tr) || is.null(tr$lCTS)) return(NULL)
+      dt <- tryCatch(rbindlist(tr$lCTS, fill = TRUE), error = function(e) NULL)
+      if (is.null(dt) || !all(c("hap1", "hap2") %in% names(dt)) || nrow(dt) != n_bins) return(NULL)
+      h1 <- as.numeric(dt$hap1); h2 <- as.numeric(dt$hap2); n <- h1 + h2
+      list(baf = ifelse(n > 0, h2 / n, NA_real_), n = n)
+    })
+    names(out) <- cell_names
+    out <- Filter(Negate(is.null), out)
+    if (length(out) > 0) {
+      message(sprintf("  BAF: haplotype reads (hap1 / hap2 in res$%s) for %d / %d cells",
+                      src, length(out), length(cell_names)))
+      return(list(baf = lapply(out, `[[`, "baf"), n = lapply(out, `[[`, "n"),
+                  source = "haplotype reads (hap2 / (hap1 + hap2))"))
+    }
+  }
+  # 2. SNP bins of the allele-specific profiles
+  as_profiles <- res$allProfiles_AS
+  if (is.null(as_profiles)) return(NULL)
+  chr_b <- gsub("^chr", "", as.character(bins$chr))
+  mid_b <- (as.numeric(bins$start) + as.numeric(bins$end)) / 2
+  out <- lapply(cell_names, function(cell) {
+    bb <- tryCatch(as_profiles[[cell]]$bin_baf, error = function(e) NULL)
+    if (is.null(bb) || !is.data.frame(bb) || nrow(bb) == 0) return(NULL)
+    bb <- as.data.table(bb)
+    val <- if ("BAF_noswitch" %in% names(bb)) bb$BAF_noswitch else bb$BAF
+    ev  <- if ("total_reads" %in% names(bb)) bb$total_reads else if ("nSNP" %in% names(bb)) bb$nSNP else rep(1, nrow(bb))
+    baf <- rep(NA_real_, n_bins); n <- rep(NA_real_, n_bins)
+    bchr <- gsub("^chr", "", as.character(bb$chr))
+    for (k in seq_len(nrow(bb))) {
+      hit <- which(chr_b == bchr[k] & mid_b >= bb$start[k] & mid_b <= bb$end[k])
+      baf[hit] <- as.numeric(val[k]); n[hit] <- as.numeric(ev[k])
+    }
+    if (all(is.na(baf))) return(NULL)
+    list(baf = baf, n = n)
+  })
+  names(out) <- cell_names
+  out <- Filter(Negate(is.null), out)
+  if (length(out) == 0) return(NULL)
+  message(sprintf("  BAF: SNP bins (allProfiles_AS$bin_baf) for %d / %d cells", length(out), length(cell_names)))
+  list(baf = lapply(out, `[[`, "baf"), n = lapply(out, `[[`, "n"),
+       source = "SNPs (bin_baf, BAF_noswitch)")
+}
+
+# =============================================================================
 # HELPER: detect allele-specific mode
 # =============================================================================
 
@@ -345,6 +407,8 @@ prepare_explorer_data <- function(res, cell_types = NULL,
   # Per-bin read counts (best-effort — see extract_read_counts()) power both
   # the read-depth plot and the Gini coefficient (coverage evenness) below.
   reads <- extract_read_counts(res, cell_names, n_bins = nrow(bins), read_count_cols = read_count_cols)
+  baf   <- tryCatch(extract_baf(res, cell_names, bins),
+                    error = function(e) { message("  BAF: skipped (", conditionMessage(e), ")"); NULL })
   cell_gini <- sapply(cell_names, function(cell_id) {
     r <- if (!is.null(reads)) reads[[cell_id]] else NULL
     if (is.null(r)) NA_real_ else gini_coefficient(r)
@@ -372,7 +436,8 @@ prepare_explorer_data <- function(res, cell_types = NULL,
     quality_dt         = quality_dt,
     hc                 = hc,
     cell_type_df       = cell_type_df,
-    reads              = reads
+    reads              = reads,
+    baf                = baf
   )
 }
 
@@ -557,6 +622,12 @@ export_for_web <- function(app_data,
   if (!is.null(ci_out))         payload$ci         <- ci_out
   if (!is.null(dendro_out))     payload$dendrogram <- dendro_out
   if (!is.null(cell_types_out)) payload$cell_types <- cell_types_out
+  if (!is.null(app_data$baf)) {
+    message("  Serializing BAF...")
+    payload$baf        <- lapply(app_data$baf$baf, function(v) round(as.numeric(v), 4))
+    payload$baf_n      <- lapply(app_data$baf$n,   function(v) as.integer(round(v)))
+    payload$baf_source <- app_data$baf$source
+  }
 
   message(sprintf("  Writing → %s", output_path))
   jsonlite::write_json(payload, output_path, auto_unbox = TRUE,

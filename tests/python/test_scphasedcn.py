@@ -157,8 +157,10 @@ def test_extraction_adds_read_counts_and_haplotype_fraction(tmp_path):
     ds = load(root)
     R = ds.layer("read_counts")
     assert (R == 10).all()  # ten 100 kb bins per 1 Mb window, cells matched by name
-    np.testing.assert_allclose(ds.layer("hap_a_frac"), 0.75)
-    assert ds.semantics["hap_a_frac"].value == "baf"
+    # 3 haplotype-A and 1 haplotype-B molecules per 100 kb bin: B / (A + B), 40 per window
+    np.testing.assert_allclose(ds.layer("baf"), 0.25)
+    assert ds.semantics["baf"].value == "baf"
+    assert (ds.layer("baf_n") == 40).all() and ds.semantics["baf_n"].value == "allele_count"
     # logR: depth equal to the reference everywhere -> the expected copies against the cell's mean
     L = ds.layer("logr")
     assert ds.semantics["logr"].value == "continuous_ratio"

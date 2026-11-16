@@ -13,7 +13,9 @@ export type Semantics =
   | "ratio"
   | "baf"
   | "probability"
-  | "count";
+  | "count"
+  /** reads (or SNPs) informative for a BAF: its evidence */
+  | "allele_count";
 
 export interface ChrInfo {
   chr: string;

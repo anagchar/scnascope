@@ -10,6 +10,8 @@ ASCAT.sc-py viewer. Fields, all keyed by cell where per cell:
 - ``reads`` per-bin read counts; ``ci`` {nMajor_lower, nMajor_upper, nMinor_lower,
   nMinor_upper} BAF 5–95% bounds
 - ``quality`` / ``qc_metrics`` per-cell QC; ``cell_types``
+- ``baf`` per-bin BAF (haplotype reads hap2 / (hap1 + hap2), or SNP bins) and ``baf_n`` its
+  evidence (reads); ``baf_source`` says which
 - ``clustering_order``, ``dendrogram`` {merge, height} (R hclust; leaves index ``profiles``)
 """
 
@@ -82,6 +84,12 @@ def from_dict(d: dict, name: str = "ascatsc") -> CNVDataset:
     reads = _matrix(d.get("reads"), cells, nb)
     if reads is not None:
         layers["read_counts"], sem["read_counts"] = reads, Semantics.COUNT
+    baf = _matrix(d.get("baf"), cells, nb)
+    if baf is not None:  # haplotype reads or SNP bins (extract_baf() in the R exporter)
+        layers["baf"], sem["baf"] = baf, Semantics.BAF
+        n = _matrix(d.get("baf_n"), cells, nb)
+        if n is not None:
+            layers["baf_n"], sem["baf_n"] = n, Semantics.ALLELE_COUNT
 
     obs = pd.DataFrame(index=cells)
     for src in ("quality", "qc_metrics"):
@@ -128,7 +136,9 @@ def from_dict(d: dict, name: str = "ascatsc") -> CNVDataset:
         tool="ASCAT.sc",
         genome="hg38",
         default_layer="total_cn",
-        extra_uns=extra | {"source": name},
+        extra_uns=extra
+        | {"source": name}
+        | ({"baf_source": str(d["baf_source"])} if d.get("baf_source") else {}),
     )
 
 
