@@ -243,6 +243,8 @@ export interface ProfileFigure extends CommonOpts {
   bins: (number | null)[] | null;
   allele: { major: (number | null)[]; minor: (number | null)[]; lo?: [(number | null)[], (number | null)[]]; hi?: [(number | null)[], (number | null)[]] } | null;
   reads: (number | null)[] | null;
+  /** per-bin BAF with its evidence (reads), and the calls whose expected BAF is drawn dotted */
+  baf: { baf: (number | null)[]; n: (number | null)[] | null; major: (number | null)[] | null; minor: (number | null)[] | null } | null;
   stateScale: Scale;
   /** colour bins by their state */
   colorBins: boolean;
@@ -267,9 +269,10 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
   g.fillStyle = T.bg; g.fillRect(0, 0, o.w, o.h);
   const top = header(g, o, pad);
   const legendH = o.legend ? fs * 2 : 0;
-  const readsH = o.reads ? (o.h - top) * 0.24 : 0;
+  const readsH = o.reads ? (o.h - top) * 0.2 : 0;
+  const bafH = o.baf ? (o.h - top) * 0.26 : 0;
   const left = pad + fs * 2.6, right = o.w - pad;
-  const plotH = o.h - top - legendH - readsH - pad - fs * 1.6 - (readsH ? fs * 0.8 : 0);
+  const plotH = o.h - top - legendH - readsH - bafH - pad - fs * 1.6 - (readsH ? fs * 0.8 : 0) - (bafH ? fs * 0.8 : 0);
   if (plotH < 10) return;
   const [gx0, gx1] = o.gx;
   const [b0, b1] = binRange(B.start_cum, B.end_cum, gx0, gx1);
@@ -335,9 +338,53 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
   } else if (o.calls) seg(o.calls, T.call, fs * 0.2);
   g.restore();
 
+  // BAF: per-bin allele fraction, sized by its reads, with the calls' expected BAF dotted
+  if (o.baf && bafH) {
+    const bt = top + plotH + fs * 1.6 + fs * 0.8, bh = bafH - fs * 0.4;
+    const BY = (v: number) => bt + bh - Math.max(0, Math.min(1, v)) * bh;
+    g.font = `${fs * 0.8}px ${FIG_FONT}`; g.textAlign = "right"; g.textBaseline = "middle"; g.lineWidth = 0.4;
+    for (const t of [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1]) {
+      g.strokeStyle = t === 0.5 ? T.ink3 : T.grid; g.setLineDash(t === 0.5 ? [1.5, 1.5] : []);
+      g.beginPath(); g.moveTo(left, BY(t)); g.lineTo(right, BY(t)); g.stroke();
+      if (t !== 0.5) { g.fillStyle = T.ink3; g.fillText(String(t), left - fs * 0.4, BY(t)); }
+    }
+    g.setLineDash([]);
+    g.save(); g.translate(pad + fs * 0.5, bt + bh / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.fillStyle = T.ink2; g.fillText("BAF", 0, 0); g.restore();
+    g.save(); g.beginPath(); g.rect(left, bt, right - left, bh); g.clip();
+    g.strokeStyle = T.frame; g.lineWidth = 0.4;
+    for (const c of meta.chr_info) if (c.start_cum > gx0 && c.start_cum < gx1) { const a = xs(c.start_cum); g.beginPath(); g.moveTo(a, bt); g.lineTo(a, bt + bh); g.stroke(); }
+    const ev: number[] = [];
+    if (o.baf.n) for (let i = b0; i < b1; i++) { const v = o.baf.n[i]; if (v != null && v > 0) ev.push(v); }
+    ev.sort((a, b) => a - b);
+    const top95 = ev.length ? ev[Math.floor(0.95 * (ev.length - 1))] : 1;
+    const base = Math.max(0.3, Math.min(1, ((right - left) / Math.max(1, b1 - b0)) * 0.4));
+    g.fillStyle = T.bars; g.globalAlpha = 0.6;
+    for (let i = b0; i < b1; i++) {
+      const v = o.baf.baf[i];
+      if (v == null || !Number.isFinite(v)) continue;
+      const w = o.baf.n ? o.baf.n[i] ?? 0 : 1;
+      const r = o.baf.n ? base * (0.7 + 1.6 * Math.sqrt(Math.min(1, w / Math.max(1, top95)))) : base;
+      g.beginPath(); g.arc(xs((B.start_cum[i] + B.end_cum[i]) / 2), BY(v), r, 0, 7); g.fill();
+    }
+    g.globalAlpha = 1;
+    const { major, minor } = o.baf;
+    if (major && minor) {
+      const key: V = major.map((a, i) => (a == null || minor[i] == null ? null : (a as number) * 1000 + (minor[i] as number)));
+      g.strokeStyle = T.ink; g.lineWidth = fs * 0.12; g.setLineDash([fs * 0.15, fs * 0.25]); g.beginPath();
+      for (const [s, e, k] of runs(B.chr, key)) {
+        if (e <= b0 || s >= b1) continue;
+        const a = Math.floor(k / 1000), b = k % 1000, t = a + b;
+        if (!(t > 0) || a === b) continue;
+        for (const f of [b / t, a / t]) { g.moveTo(xs(B.start_cum[s]), BY(f)); g.lineTo(xs(B.end_cum[e - 1]), BY(f)); }
+      }
+      g.stroke(); g.setLineDash([]);
+    }
+    g.restore();
+  }
+
   // read depth
   if (o.reads && readsH) {
-    const rt = top + plotH + fs * 1.6 + fs * 0.8, rh = readsH - fs * 0.4;
+    const rt = top + plotH + fs * 1.6 + fs * 0.8 + (bafH ? bafH + fs * 0.4 : 0), rh = readsH - fs * 0.4;
     const seen: number[] = [];
     for (let i = b0; i < b1; i++) { const v = o.reads[i]; if (v != null) seen.push(v); }
     seen.sort((a, b) => a - b);
@@ -371,6 +418,10 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
       item(() => { g.fillStyle = T.major; g.fillRect(x, ly - fs * 0.11, fs * 1.2, fs * 0.22); }, "major allele");
       item(() => { g.fillStyle = T.minor; g.fillRect(x, ly - fs * 0.11, fs * 1.2, fs * 0.22); }, "minor allele");
       if (o.allele.lo) item(() => { g.fillStyle = T.major; g.globalAlpha = 0.25; g.fillRect(x, ly - fs * 0.3, fs * 1.2, fs * 0.6); g.globalAlpha = 1; }, "BAF 5–95% interval");
+      if (o.baf) {
+        item(() => { g.fillStyle = T.bars; g.globalAlpha = 0.6; [0.14, 0.2, 0.26].forEach((r, i) => { g.beginPath(); g.arc(x + fs * 0.2 + i * fs * 0.4, ly, fs * r, 0, 7); g.fill(); }); g.globalAlpha = 1; }, o.baf.n ? "BAF per bin (size: reads)" : "BAF per bin");
+        if (o.baf.major) item(() => { g.strokeStyle = T.ink; g.lineWidth = fs * 0.12; g.setLineDash([fs * 0.15, fs * 0.25]); g.beginPath(); g.moveTo(x, ly); g.lineTo(x + fs * 1.2, ly); g.stroke(); g.setLineDash([]); }, "expected BAF");
+      }
     } else if (o.calls) item(() => { g.fillStyle = T.call; g.fillRect(x, ly - fs * 0.1, fs * 1.2, fs * 0.2); }, "copy-number call");
   }
 }

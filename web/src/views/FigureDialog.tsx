@@ -33,7 +33,7 @@ function Seg<T extends string | number>({ value, options, onChange }: { value: T
 /** "Download figure": a live preview of a publication figure and its options. */
 export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () => void }) {
   const d = useDerived();
-  const { meta, heat, shown, rowOf, sem, totalLayer, binsLayer, countLayer, hasAS } = d;
+  const { meta, heat, shown, rowOf, sem, totalLayer, binsLayer, countLayer, bafLayer, bafNLayer, hasAS } = d;
   const st = useStore();
   const cell = useCellDetail(kind === "profile" ? st.selected : null);
   const cytobands = useCytobands(meta.genome);
@@ -43,7 +43,8 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
 
   const [format, setFormat] = useState<"png" | "pdf">("png");
   const [widthMm, setWidthMm] = useState(183);
-  const [heightMm, setHeightMm] = useState(kind === "heatmap" ? 120 : 75);
+  // the profile figure is taller with its BAF panel (on by default in the allele-specific view)
+  const [heightMm, setHeightMm] = useState(kind === "heatmap" ? 120 : d.bafLayer && st.view === ALLELE ? 100 : 75);
   const [dpi, setDpi] = useState(300);
   const [themeName, setThemeName] = useState<"print" | "screen">("print");
   const [fontPt, setFontPt] = useState(7);
@@ -58,6 +59,8 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
   const [annotation, setAnnotation] = useState<string>(st.annotation && annotCols.includes(st.annotation) ? st.annotation : annotCols.includes("cell_type") ? "cell_type" : "");
   // profile
   const [reads, setReads] = useState(!!countLayer);
+  // the BAF panel, as on screen: on in the allele-specific view
+  const [bafOn, setBafOn] = useState(!!bafLayer && st.view === ALLELE);
   const [colorBins, setColorBins] = useState(true);
   const [ci, setCi] = useState(st.showCi);
   const [busy, setBusy] = useState(false);
@@ -111,8 +114,11 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
             : {}),
         }
       : null;
-    return { calls, bins, allele, reads: countLayer ? L[countLayer] : null };
-  }, [cell, totalLayer, binsLayer, countLayer, isAllele, ci, meta]);
+    const baf = bafLayer && L[bafLayer]
+      ? { baf: L[bafLayer], n: bafNLayer ? L[bafNLayer] ?? null : null, major: L.major_cn ?? null, minor: L.minor_cn ?? null }
+      : null;
+    return { calls, bins, allele, reads: countLayer ? L[countLayer] : null, baf };
+  }, [cell, totalLayer, binsLayer, countLayer, bafLayer, bafNLayer, isAllele, ci, meta]);
 
   const ready = kind === "heatmap" ? !!heat.matrix : !!profileData;
 
@@ -128,7 +134,7 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
         pxPerPt,
       });
     } else if (kind === "profile" && profileData && cell) {
-      drawProfileFigure(g, { ...common, meta, cell, gx, ...profileData, reads: reads ? profileData.reads : null, stateScale, colorBins });
+      drawProfileFigure(g, { ...common, meta, cell, gx, ...profileData, reads: reads ? profileData.reads : null, baf: bafOn ? profileData.baf : null, stateScale, colorBins });
     }
   };
 
@@ -224,6 +230,7 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
                 </Row>
               )}
             </> : <>
+              {bafLayer && <Row label="BAF" hint="per-bin BAF with the expected BAF"><Switch on={bafOn} onChange={(v) => { setBafOn(v); setHeightMm((h) => Math.max(30, Math.min(400, h + (v ? 25 : -25)))); }} label="BAF" /></Row>}
               {countLayer && <Row label="Read depth"><Switch on={reads} onChange={setReads} label="Read depth" /></Row>}
               <Row label="Colour bins by state"><Switch on={colorBins} onChange={setColorBins} label="Colour bins by state" /></Row>
               {isAllele && d.hasCi && <Row label="BAF intervals"><Switch on={ci} onChange={setCi} label="BAF intervals" /></Row>}
