@@ -20,6 +20,8 @@ export interface Derived {
   countLayer: string | null;
   /** per-bin values to plot on the copy-number scale: [layer, how] */
   binsLayer: [string, "cn" | "logr"] | null;
+  /** scRNA / multiome: the relative-expression layer, shown in its own panel, not as copies */
+  exprLayer: string | null;
   /** per-bin BAF and its evidence (reads or SNPs), for the cell profile's BAF panel */
   bafLayer: string | null;
   bafNLayer: string | null;
@@ -55,6 +57,20 @@ function pickLayer(meta: Meta, sem: Semantics, prefer: string[]): string | null 
   return meta.layers.find((l) => l.semantics === sem)?.name ?? null;
 }
 
+/**
+ * Colour range of a log-ratio layer: the 98th percentile of |value|, between 0.05 and 1.
+ * Expression-based ratios (CopyKAT ±0.15) would look blank on a fixed ±1 scale.
+ */
+export function ratioRange(m: Float32Array): number {
+  const step = Math.max(1, Math.floor(m.length / 200000));
+  const v: number[] = [];
+  for (let i = 0; i < m.length; i += step) if (Number.isFinite(m[i])) v.push(Math.abs(m[i]));
+  if (!v.length) return 1;
+  v.sort((a, b) => a - b);
+  const q = v[Math.floor(0.98 * (v.length - 1))];
+  return Math.min(1, Math.max(0.05, Math.round(q * 100) / 100));
+}
+
 function p99(m: Float32Array): number {
   const step = Math.max(1, Math.floor(m.length / 200000));
   const v: number[] = [];
@@ -79,8 +95,12 @@ export function DerivedProvider({ meta, children }: { meta: Meta; children: Reac
     const totalLayer = pickLayer(meta, "integer_cn", [meta.default_layer, "total_cn"]);
     const countLayer = pickLayer(meta, "count", ["read_counts"]);
     const cnScale = pickLayer(meta, "continuous_cn", []);
-    const ratio = pickLayer(meta, "continuous_ratio", ["logr"]);
+    // DNA logR goes on the copy-number scale; an RNA tool's ratio is relative expression, which
+    // does not scale with copy number (it gets its own panel instead)
+    const dna = meta.modality === "scDNA";
+    const ratio = dna ? pickLayer(meta, "continuous_ratio", ["logr"]) : null;
     const binsLayer: [string, "cn" | "logr"] | null = cnScale ? [cnScale, "cn"] : ratio ? [ratio, "logr"] : null;
+    const exprLayer = dna ? null : pickLayer(meta, "continuous_ratio", ["expression", "logr"]);
     const hasAS = sem.major_cn === "allele_cn" && sem.minor_cn === "allele_cn";
     const hasCi = hasAS && !!meta.intervals.major_cn;
     const b = meta.bins;
@@ -91,7 +111,7 @@ export function DerivedProvider({ meta, children }: { meta: Meta; children: Reac
       : [];
     const bafLayer = pickLayer(meta, "baf", ["baf"]);
     const bafNLayer = pickLayer(meta, "allele_count", ["baf_n"]);
-    return { sem, totalLayer, countLayer, binsLayer, bafLayer, bafNLayer, hasAS, hasCi, binSizeMb, cellTypes };
+    return { sem, totalLayer, countLayer, binsLayer, exprLayer, bafLayer, bafNLayer, hasAS, hasCi, binSizeMb, cellTypes };
   }, [meta]);
 
   const minBinsNow = minSegmentMb > 0 ? Math.max(1, Math.ceil(minSegmentMb / base.binSizeMb)) : 0;
@@ -153,7 +173,11 @@ export function DerivedProvider({ meta, children }: { meta: Meta; children: Reac
     const s = base.sem[view] ?? "integer_cn";
     const m = matrices[view];
     if (!m) return { matrix: null, scale: scaleFor(s, { palette, dark }), progress: progress([view]), label: view };
-    const scale = scaleFor(s, { palette, dark, countMax: s === "count" ? p99(m) : undefined });
+    const scale = scaleFor(s, {
+      palette, dark,
+      countMax: s === "count" ? p99(m) : undefined,
+      ratioMax: s === "continuous_ratio" ? ratioRange(m) : undefined,
+    });
     let matrix = m;
     if (minBins > 1 && isCall(s)) matrix = view === base.totalLayer && filteredTotal ? filteredTotal : filterSmallSegments(m, meta.n_cells, meta.n_bins, minBins, scale.baseline);
     return { matrix, scale, progress: null, label: view };

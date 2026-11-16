@@ -49,4 +49,11 @@ describe("buildLut", () => {
     expect(Array.from(lut.slice(0, 4))).toEqual([0, 0, 0, 255]);
     expect(Array.from(lut.slice(-4))).toEqual([255, 255, 255, 255]);
   });
+
+  it("fits the log-ratio scale to the data when given a range", () => {
+    const s = scaleFor("continuous_ratio", { ratioMax: 0.15 });
+    expect([s.lo, s.hi]).toEqual([-0.15, 0.15]);
+    expect(s.labels).toEqual(["≤ −0.15", "0", "≥ 0.15"]);
+    expect(scaleFor("continuous_ratio").hi).toBe(1);
+  });
 });

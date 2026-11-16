@@ -17,8 +17,8 @@ The bins are the columns of ``gexp_roll_wide`` when they are genomic bins; for a
 - ``total_cn`` / ``major_cn`` / ``minor_cn``: where ``p_cnv`` >= ``min_p`` (0.9), that
   segment's state as allele copies, otherwise neutral 1:1 (del 1:0, amp 2:1, loh 2:0, bamp 2:2,
   bdel 0:0): relative states, the way Numbat's heatmap shows them, not absolute copy numbers
-- ``logr``: the smoothed expression ratio (bin-level runs only: a gene-level run's outputs do
-  not hold the genes' positions)
+- ``expression``: the smoothed expression ratio (bin-level runs on their bins; gene-level runs
+  averaged per 1 Mb window, the genes placed with ``bulk_clones_final.tsv.gz``)
 
 Cells: ``clone``, ``compartment``, ``p_cnv_cell`` (Numbat's p_cnv), ``p_opt``, ``cnv_burden``.
 """
@@ -31,6 +31,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ..genome import coarsen_bins
 from ..model import CNVDataset, Modality, Semantics, chr_sort_key
 from . import Reader, register
 
@@ -44,7 +45,6 @@ STATES = {
 }
 BIN_NAME = re.compile(r"^(chr)?([0-9XYM]+):(\d+)-(\d+)$")
 WINDOW = 1_000_000
-MAX_BINS = 8000
 #: a segment's state is painted on a cell when Numbat is this sure the cell carries it. Per-cell
 #: segment posteriors are often near 0.5 (little evidence per cell, e.g. on short segments):
 #: Numbat's own heatmap fades them out with p_cnv; 0.9 keeps the confident ones.
@@ -72,7 +72,10 @@ def _final(d: Path) -> int | None:
 
 
 def runs_under(path: Path) -> list[Path]:
-    """Numbat output folders at `path` or up to two levels below it."""
+    """Numbat output folders at `path` or up to two levels below it. A folder that is itself a run
+    is that run, even with other runs in its subfolders."""
+    if path.is_dir() and _final(path) is not None:
+        return [path]
     found = []
     for d in [path, *path.glob("*"), *path.glob("*/*")]:
         if d.is_dir() and not d.name.startswith(".") and _final(d) is not None:
@@ -114,25 +117,45 @@ def _bin_grid(names: list[str]) -> pd.DataFrame | None:
     return pd.DataFrame(rows, columns=["chr", "start", "end", "name"])
 
 
-def _coarsen(bins: pd.DataFrame, X: np.ndarray | None) -> tuple[pd.DataFrame, np.ndarray | None]:
-    """Merge neighbouring bins of a chromosome until there are at most MAX_BINS (the heatmap's
-    width); X (cells x bins) is averaged over the merged bins."""
-    k = int(np.ceil(len(bins) / MAX_BINS))
-    if k <= 1:
-        return bins, X
-    grp = bins.groupby("chr", sort=False).cumcount() // k
-    key = bins["chr"] + ":" + grp.astype(str)
-    codes, uniq = pd.factorize(key)
-    nb = bins.groupby(codes).agg(chr=("chr", "first"), start=("start", "min"), end=("end", "max"))
-    if X is not None:
-        S = np.zeros((X.shape[0], len(uniq)))
-        C = np.zeros((X.shape[0], len(uniq)))
-        fin = np.isfinite(X)
-        np.add.at(S.T, codes, np.where(fin, X, 0).T)
-        np.add.at(C.T, codes, fin.T)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            X = np.where(C > 0, S / C, np.nan)
-    return nb.reset_index(drop=True), X
+def _genes_on_windows(
+    d: Path, gexp_file: Path, cells: list[str], bins: pd.DataFrame
+) -> np.ndarray | None:
+    """A gene-level run's smoothed expression averaged per window, with the genes' positions
+    from bulk_clones_final.tsv.gz (Numbat's outputs hold them only there)."""
+    bulk = d / "bulk_clones_final.tsv.gz"
+    if not bulk.is_file():
+        return None
+    try:
+        pos = pd.read_csv(
+            bulk, sep="\t", usecols=["CHROM", "gene", "gene_start"], dtype={"CHROM": str}
+        )
+    except ValueError:  # an older layout without these columns
+        return None
+    pos = pos.dropna().drop_duplicates("gene").set_index("gene")
+    head = pd.read_csv(gexp_file, sep="\t", nrows=0).columns.tolist()
+    genes = [g for g in head[1:] if g in pos.index]
+    if not genes:
+        return None
+    key = pd.MultiIndex.from_arrays([bins["chr"].to_numpy(), (bins["start"] // WINDOW).to_numpy()])
+    gk = pd.MultiIndex.from_arrays(
+        [
+            ("chr" + pos.loc[genes, "CHROM"].str.removeprefix("chr")).to_numpy(),
+            (pos.loc[genes, "gene_start"].astype(np.int64) // WINDOW).to_numpy(),
+        ]
+    )
+    col = key.get_indexer(gk)
+    ok = col >= 0
+    types = {g: np.float32 for g in head[1:]} | {head[0]: str}
+    g = pd.read_csv(gexp_file, sep="\t", dtype=types, usecols=[head[0], *genes], engine="c")
+    G = g.set_index(head[0]).reindex(index=cells)[genes].to_numpy(np.float32)
+    del g
+    S = np.zeros((len(cells), len(bins)))
+    C = np.zeros((len(cells), len(bins)))
+    fin = np.isfinite(G[:, ok])
+    np.add.at(S.T, col[ok], np.where(fin, G[:, ok], 0).T)
+    np.add.at(C.T, col[ok], fin.T)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(C > 0, S / C, np.nan).astype(np.float32)
 
 
 def read_numbat(
@@ -176,7 +199,9 @@ def read_numbat(
             for k in range(int(np.ceil(chroms[c] / WINDOW)))
         ]
         bins = pd.DataFrame(rows, columns=["chr", "start", "end"])
-    bins, logr = _coarsen(bins, logr)
+        if gexp_file.is_file():  # gene-level: genes placed with bulk_clones_final's positions
+            logr = _genes_on_windows(d, gexp_file, cells, bins)
+    bins, logr = coarsen_bins(bins, logr)
 
     # each segment's probability on the bins it overlaps; a bin takes its most likely segment
     n, nb = len(cells), len(bins)
@@ -233,7 +258,7 @@ def read_numbat(
         "p_cnv": Semantics.PROBABILITY,
     }
     if logr is not None:
-        layers["logr"], sem["logr"] = logr, Semantics.CONTINUOUS_RATIO
+        layers["expression"], sem["expression"] = logr, Semantics.CONTINUOUS_RATIO
     mod = Modality(modality) if modality else (Modality.MULTIOME if binned else Modality.SCRNA)
     # cells ordered by their CNV posteriors, as Numbat builds its phylogeny from geno (the
     # painted states are too sparse to order the cells by); both views use it

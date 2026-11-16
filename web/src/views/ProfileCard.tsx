@@ -4,7 +4,7 @@ import { FONT, axes, chrLabel, css, esc, fit, fmt, fmtBp, fmtCount, fmtInt, nice
 import { binAt, binRange, chromLabels } from "../lib/genome";
 import { fails } from "../lib/filters";
 import { fmtMetric, isOutlier } from "../lib/metrics";
-import { PALETTES } from "../lib/palettes";
+import { DIVERGING, PALETTES } from "../lib/palettes";
 import { discreteColor, isCall, scaleFor } from "../lib/scales";
 import { useDerived } from "../state/derived";
 import { ALLELE, useStore } from "../state/store";
@@ -204,8 +204,8 @@ const ProfilePlot = memo(forwardRef<HTMLCanvasElement, { cell: CellDetail; heigh
       g.stroke();
     }
     g.restore();
-    if (!raw && prof && !ternary) { g.fillStyle = css("--ink3"); g.textAlign = "left"; g.textBaseline = "alphabetic"; g.font = `11px ${FONT}`; g.fillText("no per-bin values in this dataset; showing the calls", PR.l + 8, PR.t + 14); }
-  }, [cell, width, height, gx0, gx1, isAS, raw, prof, hasCi, cnScale, L, meta, B, nb, ivMaj, ivMin, theme, stateScale, ternary, ternaryScale]);
+    if (!raw && prof && !ternary && !d.exprLayer) { g.fillStyle = css("--ink3"); g.textAlign = "left"; g.textBaseline = "alphabetic"; g.font = `11px ${FONT}`; g.fillText("no per-bin values in this dataset; showing the calls", PR.l + 8, PR.t + 14); }
+  }, [cell, width, height, gx0, gx1, isAS, raw, prof, hasCi, cnScale, L, meta, B, nb, ivMaj, ivMin, theme, stateScale, ternary, ternaryScale, d.exprLayer]);
 
   const move = (e: React.MouseEvent) => {
     const r = cv.current!.getBoundingClientRect(), x = e.clientX - r.left, plotW = width - PR.l - PR.r;
@@ -339,6 +339,78 @@ function binUnder(e: React.MouseEvent<HTMLCanvasElement>, width: number, gx0: nu
   return binAt(endCum, gx0 + ((x - PR.l) / plotW) * (gx1 - gx0));
 }
 
+/* ── expression (scRNA / multiome): relative expression per bin, on its own axis ── */
+function ExpressionPlot({ expr, call, callName, height = 170 }: { expr: Vals; call: Vals | null; callName: string; height?: number }) {
+  const { meta } = useDerived();
+  const zoom = useStore((s) => s.zoom);
+  const theme = useStore((s) => s.theme);
+  const box = useRef<HTMLDivElement>(null);
+  const cv = useRef<HTMLCanvasElement>(null);
+  const width = useWidth(box);
+  const B = meta.bins, genomeMax = B.end_cum[meta.n_bins - 1];
+  const [gx0, gx1] = zoom?.x ?? [0, genomeMax];
+  const T = 18, BOT = 6;
+  // the axis: ± the 98th percentile of this cell's |log2 expression|, at least ±0.05
+  const range = useMemo(() => {
+    const v: number[] = [];
+    for (const x of expr) if (x != null && Number.isFinite(x)) v.push(Math.abs(x));
+    v.sort((a, b) => a - b);
+    return v.length ? Math.max(0.05, v[Math.floor(0.98 * (v.length - 1))] * 1.1) : 0.2;
+  }, [expr]);
+  useEffect(() => {
+    const c = cv.current;
+    if (!c) return;
+    const g = fit(c, width, height);
+    g.clearRect(0, 0, width, height);
+    const plotW = width - PR.l - PR.r, plotH = height - T - BOT;
+    const xS = (v: number) => PR.l + ((v - gx0) / (gx1 - gx0)) * plotW;
+    const Y = (v: number) => T + plotH / 2 - (Math.max(-range, Math.min(range, v)) / range) * (plotH / 2);
+    const [b0, b1] = binRange(B.start_cum, B.end_cum, gx0, gx1);
+    // ticks in relative expression (×), placed on the log2 axis
+    const step = range > 0.4 ? 0.25 : range > 0.15 ? 0.1 : 0.05;
+    g.font = `11px ${FONT}`; g.lineWidth = 1; g.fillStyle = css("--ink3"); g.textAlign = "right"; g.textBaseline = "middle";
+    const ticks = [1];
+    for (let k = 1; k < 20; k++) {
+      const up = 1 + k * step, dn = 1 - k * step;
+      if (Math.log2(up) <= range) ticks.push(up);
+      if (dn > 0 && -Math.log2(dn) <= range) ticks.push(dn);
+    }
+    for (const t of ticks) {
+      const y = Y(Math.log2(t));
+      g.strokeStyle = css(t === 1 ? "--ink3" : "--grid"); g.setLineDash(t === 1 ? [5, 4] : []);
+      g.beginPath(); g.moveTo(PR.l, y); g.lineTo(PR.l + plotW, y); g.stroke();
+      g.fillText(`${Math.round(t * 100) / 100}×`, PR.l - 6, y);
+    }
+    g.setLineDash([]);
+    drawChromosomes(g, meta, xS, gx0, gx1, T, plotH, null);
+    g.save(); g.beginPath(); g.rect(PR.l, 0, plotW, height); g.clip();
+    const lo = css("--expr-lo") || DIVERGING[0], hi = css("--expr-hi") || DIVERGING[4], mid = css("--ink3");
+    for (let i = b0; i < b1; i++) {
+      const v = expr[i];
+      if (v == null || !Number.isFinite(v)) continue;
+      const f = Math.min(1, Math.abs(v) / range);
+      g.fillStyle = f < 0.15 ? mid : v > 0 ? hi : lo;
+      g.globalAlpha = 0.35 + 0.6 * f;
+      g.beginPath(); g.arc(xS((B.start_cum[i] + B.end_cum[i]) / 2), Y(v), 1.8, 0, 7); g.fill();
+    }
+    g.globalAlpha = 1;
+    g.restore();
+    g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = css("--ink2");
+    g.fillText("Expression per bin (relative to the reference cells)", PR.l, 12);
+    g.textAlign = "right"; g.fillStyle = css("--ink3");
+    g.fillText("not on the copy-number scale: expression is compressed and smoothed", PR.l + plotW, 12);
+  }, [expr, range, width, height, gx0, gx1, meta, B, theme]);
+  const move = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const b = binUnder(e, width, gx0, gx1, B.end_cum);
+    if (b == null) return tip(null);
+    const v = expr[b];
+    tip(e, `<span class="k">${chrLabel(B.chr[b])}:${fmtBp(B.start[b])}–${fmtBp(B.end[b])}</span>` +
+      `<br><span class="k">expression</span> <b>${v != null && Number.isFinite(v) ? fmt(2 ** v, 3) + "×" : "–"}</b>` +
+      (call && call[b] != null ? `<br><span class="k">${esc(callName)}</span> ${call[b]}` : ""));
+  };
+  return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} onMouseMove={move} onMouseLeave={() => tip(null)} /></div>;
+}
+
 /* ── read depth: per-bin read counts on the profile's x scale ── */
 function ReadDepthPlot({ reads, height = 120 }: { reads: Vals; height?: number }) {
   const { meta } = useDerived();
@@ -445,6 +517,10 @@ export function ProfileCard() {
           : !cell ? <div className="empty">Loading…</div>
           : <>
             <ProfilePlot ref={plot} cell={cell} />
+            {d.exprLayer && d.totalLayer && cell.layers[d.exprLayer] && (
+              <ExpressionPlot expr={cell.layers[d.exprLayer]} call={cell.layers[d.totalLayer] ?? null}
+                callName={d.totalLayer === "total_cn" ? "copy number call" : d.totalLayer} />
+            )}
             {view === ALLELE && d.bafLayer && cell.layers[d.bafLayer] && (
               <BafPlot baf={cell.layers[d.bafLayer]} n={d.bafNLayer ? cell.layers[d.bafNLayer] ?? null : null}
                 major={cell.layers.major_cn ?? null} minor={cell.layers.minor_cn ?? null} />

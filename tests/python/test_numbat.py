@@ -71,7 +71,7 @@ def test_reads_final_iteration(tmp_path):
     assert a.n_vars == 8 and a.var["chr"].tolist()[:2] == ["chr1", "chr1"]
     assert a.obs["clone"].tolist() == ["1", "2", "2", "1"]
     assert a.obs["compartment"].tolist() == ["normal", "tumor", "tumor", "normal"]
-    assert set(ds.layer_names) == {"total_cn", "major_cn", "minor_cn", "p_cnv", "logr"}
+    assert set(ds.layer_names) == {"total_cn", "major_cn", "minor_cn", "p_cnv", "expression"}
 
 
 def test_states_painted_where_numbat_is_confident(tmp_path):
@@ -95,7 +95,9 @@ def test_expression_follows_the_bins(tmp_path):
     d = write_run(tmp_path / "numbat_out")
     g = pd.read_csv(d / "gexp_roll_wide.tsv.gz", sep="\t").set_index("cell")
     ds = load(d)
-    np.testing.assert_allclose(ds.layer("logr")[1, 0], g.loc["GGTT", "chr1:0-1000000"], rtol=1e-6)
+    np.testing.assert_allclose(
+        ds.layer("expression")[1, 0], g.loc["GGTT", "chr1:0-1000000"], rtol=1e-6
+    )
 
 
 def test_no_dna_qc_metrics(tmp_path):
@@ -135,3 +137,9 @@ def test_categorical_strings_preserves_missing_values():
     c = _categorical_strings(pd.Series([1, None, "x", pd.NA]))
     assert c[0] == "1" and c[2] == "x"
     assert pd.isna(c[1]) and pd.isna(c[3])
+
+
+def test_a_run_folder_is_used_despite_runs_below_it(tmp_path):
+    top = write_run(tmp_path / "numbat_output")
+    write_run(top / "Results_corrected")
+    assert load(top).adata.uns["numbat_iteration"] == 2

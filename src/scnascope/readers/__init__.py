@@ -68,9 +68,11 @@ from . import (  # noqa: E402,F401
     ascatsc_json,
     ascatsc_r,
     chisel,
+    copykat,
     demo,
     epianeufinder,
     hiscanner,
+    infercnv,
     numbat,
     scphasedcn,
 )

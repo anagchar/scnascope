@@ -93,3 +93,30 @@ def segments_to_bins(
             vals = g[v].to_numpy(dtype=np.float32)
             out[v][int(row), idx[ok]] = vals[k[ok]]
     return out
+
+
+#: the heatmap draws one texture column per bin; more than this are merged
+MAX_BINS = 8000
+
+
+def coarsen_bins(
+    bins: pd.DataFrame, X: np.ndarray | None, max_bins: int = MAX_BINS
+) -> tuple[pd.DataFrame, np.ndarray | None]:
+    """Merge neighbouring bins of a chromosome until there are at most `max_bins`; X (cells x
+    bins) is averaged over the merged bins (NaN ignored)."""
+    k = int(np.ceil(len(bins) / max_bins))
+    if k <= 1:
+        return bins, X
+    grp = bins.groupby("chr", sort=False).cumcount() // k
+    key = bins["chr"].astype(str) + ":" + grp.astype(str)
+    codes, uniq = pd.factorize(key)
+    nb = bins.groupby(codes).agg(chr=("chr", "first"), start=("start", "min"), end=("end", "max"))
+    if X is not None:
+        S = np.zeros((X.shape[0], len(uniq)), dtype=np.float64)
+        C = np.zeros((X.shape[0], len(uniq)), dtype=np.float64)
+        fin = np.isfinite(X)
+        np.add.at(S.T, codes, np.where(fin, X, 0).T)
+        np.add.at(C.T, codes, fin.T)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            X = np.where(C > 0, S / C, np.nan).astype(np.float32)
+    return nb.reset_index(drop=True), X

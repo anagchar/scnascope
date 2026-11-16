@@ -47,8 +47,27 @@ def hclust_order(merge: np.ndarray) -> np.ndarray:
     return np.asarray(out, dtype=np.int64)
 
 
-def ward_manhattan(x: np.ndarray) -> dict:
-    """Ward.D2 on Manhattan distances of the rows of ``x`` (NaN → -1)."""
+def pool_columns(x: np.ndarray, max_cols: int) -> np.ndarray:
+    """Means of blocks of neighbouring columns, so `x` has at most `max_cols` columns."""
+    k = int(np.ceil(x.shape[1] / max_cols))
+    if k <= 1:
+        return x
+    pad = (-x.shape[1]) % k
+    xp = np.pad(x.astype(np.float64), ((0, 0), (0, pad)), constant_values=np.nan)
+    with np.errstate(invalid="ignore"):
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            return np.nanmean(xp.reshape(x.shape[0], -1, k), axis=2)
+
+
+def ward_manhattan(x: np.ndarray, max_cols: int | None = None) -> dict:
+    """Ward.D2 on Manhattan distances of the rows of ``x`` (NaN → -1). With `max_cols`, a wide
+    matrix is first averaged over blocks of neighbouring columns (thousands of cells on
+    thousands of windows would otherwise take very long)."""
+    if max_cols:
+        x = pool_columns(x, max_cols)
     x = np.where(np.isnan(x), -1.0, x.astype(np.float64))
     Z = linkage(pdist(x, metric="cityblock"), method="ward")
     h = scipy_to_hclust(Z)

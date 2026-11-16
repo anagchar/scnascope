@@ -48,9 +48,10 @@ TOOLS = [
     Tool("hiscanner", "HiScanner", "dna", ("hiscanner",)),
     Tool("chisel", "CHISEL", "dna", ("chisel",)),
     Tool("scphasedcn", "scphasedcn", "dna", ("scphasedcn",)),
+    Tool("ascent", "ASCENT", "dna", ()),
     Tool("numbat", "Numbat", "rna", ("numbat",), also=("multiome",)),
-    Tool("infercnv", "InferCNV", "rna", ()),
-    Tool("copykat", "CopyKAT", "rna", ()),
+    Tool("infercnv", "InferCNV", "rna", ("infercnv",)),
+    Tool("copykat", "CopyKAT", "rna", ("copykat",)),
     Tool("epianeufinder", "epiAneufinder", "atac", ("epianeufinder",), ("epianeu",)),
 ]
 BY_NAME = {k: t for t in TOOLS for k in (t.name, *t.aliases)}

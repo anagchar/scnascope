@@ -71,7 +71,7 @@ scnascope --mode dna --tool ascatsc --input-file /path/to/results.rds --outdir r
 | `--mode` | `--tool` |
 |---|---|
 | `dna` | `ascatsc` (folder with the `.rds`/`.Rda` result or `ascat_data.json`), `hiscanner`, `chisel`, `scphasedcn` (the caller folder, the sample folder, or the `call_scn()` result object `<sample>_call_scn.rds`) |
-| `rna` | `numbat` (its `out_dir`, or the folder holding `numbat_out/`); `infercnv`, `copykat` (planned) |
+| `rna` | `numbat` (its `out_dir`, or the folder holding `numbat_out/`), `infercnv` (its `out_dir`, or the folder holding `output/`), `copykat` (the folder with `*_copykat_CNA_results.txt`, or that file) |
 | `atac` | `epianeufinder` (the run's output folder, holding `epiAneufinder_results/`) |
 | `multiome` | `numbat` (a Numbat-multiome run, on genomic bins) |
 
@@ -86,7 +86,7 @@ gets `p_cnv`, the probability of the most likely CNV segment over every bin (Num
 and the segment's state as allele copies where that probability is at least 0.9 (del 1:0,
 amp 2:1, loh 2:0, bamp 2:2, bdel 0:0; relative states, not absolute copy numbers), so it opens on
 the allele-specific view. Bin-level runs (Numbat-multiome, "genes" named `chr1:0-1042457`) use
-those bins and add the smoothed expression (`gexp_roll_wide`) as `logr`. Cells are ordered by
+those bins and add the smoothed expression (`gexp_roll_wide`) as `expression`; gene-level runs average it per 1 Mb window, the genes placed with `bulk_clones_final.tsv.gz`. Cells are ordered by
 Ward clustering of `p_cnv`, the matrix Numbat builds its phylogeny from; clone and tumour /
 normal compartment are cell columns. A folder with several runs (e.g. `1MB/`, `220KB/`) is
 refused with their names: point `--input` at one.
@@ -94,6 +94,24 @@ refused with their names: point `--input` at one.
 ```bash
 scnascope --mode multiome --numbat --input Numbat-multiome/1MB --outdir results/
 ```
+
+InferCNV: read from its plain-text HMM results (no R needed): each cell is painted with its
+subcluster's regions (`*.pred_cnv_regions.dat`, the Bayesian-filtered `HMM_CNV_predictions.*`
+when present) on 1 Mb windows, HMM i6 states as copy number (1 → 0, 2 → 1, 3 → 2, 4 → 3, 5 → 4,
+6 → 6); cell types from `cell_annotations.txt` and the subclusters are cell columns. With R on
+the PATH, the smoothed expression InferCNV plots (`infercnv.png`) is added as `expression`, read
+from `run.final.infercnv_obj` without the infercnv package, with the reference cells flagged.
+
+Every scRNA / multiome tool (Numbat, InferCNV, CopyKAT) has this `expression` view next to its
+calls: the tool's smoothed expression ratio, per window, as log2.
+
+CopyKAT (the R package or its Python port): the windows' log ratios (`*_copykat_CNA_results.txt`)
+as `expression`, and the prediction (`*_copykat_prediction.txt`: aneuploid / diploid; the Python
+port's cluster and confidence too). A folder with several runs is refused with their names:
+choose one with `--input-file`.
+
+Expression-based ratios are small (CopyKAT ±0.15), so the heatmap's log-ratio colours span
+± the 98th percentile of the data rather than ±1.
 
 scphasedcn: normal mode paints each cell's reportable calls (arm, chromosome, 5-50 Mb tiles,
 events) on 1 Mb windows over the neutral state, as allele-specific copy number (loss 1:0, gain

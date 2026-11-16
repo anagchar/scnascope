@@ -19,6 +19,8 @@ export interface Scale {
 
 export interface ScaleOpts {
   countMax?: number;
+  /** log ratios: the colour scale runs from −ratioMax to +ratioMax (default 1) */
+  ratioMax?: number;
   palette?: Palette;
   dark?: boolean;
 }
@@ -37,8 +39,11 @@ export function scaleFor(sem: Semantics, opts: ScaleOpts = {}): Scale {
       return { kind: "discrete", lo: 0, hi: 4, stops: [cn[0], cn[2], cn[3], cn[4], cn[5]], labels: ["0", "1", "2", "3", "4+"], baseline: 1 };
     case "ternary_state":
       return { kind: "discrete", lo: -1, hi: 1, stops: [cn[0], cn[2], cn[5]], labels: ["Loss", "Normal", "Gain"], baseline: 0 };
-    case "continuous_ratio":
-      return { kind: "linear", lo: -1, hi: 1, stops: forTheme(DIVERGING, dark, DIVERGING[2]), labels: ["≤ −1", "0", "≥ 1"], baseline: 0 };
+    case "continuous_ratio": {
+      const r = opts.ratioMax && opts.ratioMax > 0 ? opts.ratioMax : 1;
+      const t = r >= 1 ? String(Math.round(r * 10) / 10) : r.toFixed(2).replace(/0$/, "");
+      return { kind: "linear", lo: -r, hi: r, stops: forTheme(DIVERGING, dark, DIVERGING[2]), labels: [`≤ −${t}`, "0", `≥ ${t}`], baseline: 0 };
+    }
     case "continuous_cn":
       return { kind: "linear", lo: 0, hi: 6, stops: cn.slice(0, 7), labels: ["0", "2", "6+"], baseline: 2 };
     case "ratio":
