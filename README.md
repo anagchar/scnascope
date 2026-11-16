@@ -7,11 +7,11 @@ Interactive viewer for single-cell copy-number calls, across modalities.
 The `scnascope` command (below) reads the tools' outputs and writes those `.h5ad` files.
 
 
-| Modality | Tools (planned order) |
+| Modality | Tools |
 |---|---|
-| scDNA | ASCAT.sc, HiScanner, CHISEL, scphasedcn (long-read, phased) → later SCOPE, Ginkgo, … |
-| scATAC | epiAneufinder → later Alleloscope, CopyscAT |
-| scRNA | Numbat → later InferCNV, CopyKAT |
+| scDNA | ASCAT.sc, HiScanner, CHISEL, scphasedcn (long-read, phased), ASCENT |
+| scATAC | epiAneufinder |
+| scRNA | Numbat, InferCNV, CopyKAT |
 | Multiome | Numbat-multiome (binned RNA + ATAC counts) → later paired per-modality calls |
 
 Each tool's output is read into one canonical model (an AnnData object: cells × genomic bins,
