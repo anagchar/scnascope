@@ -1,4 +1,4 @@
-// Read a cnvscope .h5ad (AnnData, HDF5) in the browser with h5wasm.
+// Read a scnascope .h5ad (AnnData, HDF5) in the browser with h5wasm.
 // Mirrors CNVDataset.read + build_meta: obs/var dataframes, layers, uns.
 
 import type { Dendrogram, Meta, Semantics } from "../api/client";
@@ -61,7 +61,7 @@ function frame(g: Node): { index: string[]; cols: Record<string, Column> } {
 
 export async function readH5ad(bytes: Uint8Array, name: string): Promise<LocalData> {
   const m = await h5();
-  const path = `/cnvscope-${Date.now()}.h5ad`;
+  const path = `/scnascope-${Date.now()}.h5ad`;
   m.FS!.writeFile(path, bytes);
   const f = new m.File(path, "r");
   try {
@@ -72,7 +72,7 @@ export async function readH5ad(bytes: Uint8Array, name: string): Promise<LocalDa
     const layers: Record<string, Float32Array> = {};
     for (const k of lg?.keys() ?? []) {
       const d = lg.get(k);
-      if (isGroup(d)) throw new Error(`layer ${k} is stored sparse; cnvscope expects dense layers`);
+      if (isGroup(d)) throw new Error(`layer ${k} is stored sparse; scnascope expects dense layers`);
       const v = d.value;
       layers[k] = v instanceof Float32Array ? v : Float32Array.from(v as ArrayLike<number>);
     }

@@ -9,9 +9,9 @@ import pytest
 import scipy.sparse as sp
 from click.testing import CliRunner
 
-from cnvscope.cli import main
-from cnvscope.readers import detect, load
-from cnvscope.readers.scphasedcn import _categorical_strings
+from scnascope.cli import main
+from scnascope.readers import detect, load
+from scnascope.readers.scphasedcn import _categorical_strings
 
 CELLS = ["c1", "c2", "c3"]
 REGIONS = pd.DataFrame(

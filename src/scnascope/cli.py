@@ -2,8 +2,8 @@
 
 One command for a run::
 
-    cnvscope --mode dna --tool chisel --input chisel_out/ --outdir results/
-    cnvscope --mode dna --chisel --input chisel_out/ --outdir results/      # same
+    scnascope --mode dna --tool chisel --input chisel_out/ --outdir results/
+    scnascope --mode dna --chisel --input chisel_out/ --outdir results/      # same
 
 reads the tool's output, writes the dataset and a per-cell table to ``--outdir`` and opens
 the viewer. Subcommands for finer control: ``serve``, ``convert``, ``tools``, ``demo``.
@@ -78,10 +78,10 @@ def find_input(tool: Tool, path: Path) -> Path:
         return runs[0] if runs else path
     if tool.name != "ascatsc" or path.is_file():
         return path
-    # an ASCAT.sc results folder: prefer the viewer file export_cnvscope() writes, then a web
+    # an ASCAT.sc results folder: prefer the viewer file export_scnascope() writes, then a web
     # export (both fast), then the R result object (read through R: minutes)
     found = sorted(p for p in path.glob("*.h5ad") if not p.name.startswith("._"))
-    found.sort(key=lambda p: not p.name.endswith(".cnvscope.h5ad"))
+    found.sort(key=lambda p: not p.name.endswith(".scnascope.h5ad"))
     if not found:
         found = sorted(path.glob("*.json.gz")) + sorted(path.glob("*.json"))
         found = [p for p in found if readers.REGISTRY["ascatsc_json"].detect(p)]
@@ -96,9 +96,8 @@ def find_input(tool: Tool, path: Path) -> Path:
     if not found:
         raise click.UsageError(f"no ASCAT.sc result (.rds/.Rda or ascat_data.json) in {path}")
     if len(found) > 1:
-        click.echo(
-            f"cnvscope: using {found[0].name} (also found: {', '.join(p.name for p in found[1:4])})"
-        )
+        others = ", ".join(p.name for p in found[1:4])
+        click.echo(f"scnascope: using {found[0].name} (also found: {others})")
     return found[0]
 
 
@@ -160,7 +159,7 @@ def cached_result(outdir: Path, name: str, tool: str, src: Path, fp: str) -> Pat
 
 
 def write_outputs(ds, outdir: Path, name: str, meta: dict) -> dict[str, Path]:
-    """<name>.h5ad (open it again with `cnvscope serve`), <name>_cells.tsv, <name>_run.json."""
+    """<name>.h5ad (open it again with `scnascope serve`), <name>_cells.tsv, <name>_run.json."""
     outdir.mkdir(parents=True, exist_ok=True)
     paths = {
         "dataset": outdir / f"{name}.h5ad",
@@ -192,11 +191,11 @@ def add_annotations(ds, path: Path) -> None:
         n = annotate(ds, path)
     except Exception as e:  # noqa: BLE001
         raise click.ClickException(f"could not add annotations from {path}: {e}") from e
-    click.echo(f"cnvscope: annotations for {n:,} of {ds.adata.n_obs:,} cells from {path.name}")
+    click.echo(f"scnascope: annotations for {n:,} of {ds.adata.n_obs:,} cells from {path.name}")
 
 
 def free_port(host: str, port: int, tries: int = 50) -> int:
-    """`port`, or the next free one after it: another cnvscope may already be running."""
+    """`port`, or the next free one after it: another scnascope may already be running."""
     import socket
 
     for p in range(port, port + tries):
@@ -217,11 +216,11 @@ def run_viewer(ds, name: str, host: str, port: int, no_open: bool) -> None:
     chosen = free_port(host, port)
     if chosen != port:
         click.echo(
-            f"cnvscope: port {port} is in use (another viewer still running?), using {chosen}"
+            f"scnascope: port {port} is in use (another viewer still running?), using {chosen}"
         )
     port = chosen
     url = f"http://{host}:{port}"
-    click.echo(f"cnvscope: viewer at {url}  (Ctrl+C to stop)")
+    click.echo(f"scnascope: viewer at {url}  (Ctrl+C to stop)")
     if not no_open:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(create_app(ds, name), host=host, port=port, log_level="warning")
@@ -288,7 +287,7 @@ def with_tool_flags(f):
 @click.option("--port", default=8765, show_default=True, help="Viewer port.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Viewer address.")
 @click.option("--no-open", is_flag=True, help="Do not open a browser.")
-@click.version_option(__version__, "-V", "--version", prog_name="cnvscope")
+@click.version_option(__version__, "-V", "--version", prog_name="scnascope")
 @click.pass_context
 def main(
     ctx: click.Context,
@@ -306,20 +305,20 @@ def main(
     no_open,
     **flags,
 ) -> None:
-    """cnvscope: interactive viewer for single-cell copy-number calls.
+    """scnascope: interactive viewer for single-cell copy-number calls.
 
     \b
     One command:
-      cnvscope --mode dna --tool chisel --input chisel_out/ --outdir results/
-      cnvscope --mode dna --hiscanner --input hiscanner_out/ --outdir results/
-      cnvscope --mode dna --ascatsc --input ascatsc_results/ --outdir results/
-      cnvscope --mode atac --epianeufinder --input epi_out/ --annotations cells.csv \\
+      scnascope --mode dna --tool chisel --input chisel_out/ --outdir results/
+      scnascope --mode dna --hiscanner --input hiscanner_out/ --outdir results/
+      scnascope --mode dna --ascatsc --input ascatsc_results/ --outdir results/
+      scnascope --mode atac --epianeufinder --input epi_out/ --annotations cells.csv \\
                --outdir results/
-      cnvscope --mode multiome --numbat --input numbat_run/ --outdir results/
+      scnascope --mode multiome --numbat --input numbat_run/ --outdir results/
 
     \b
     Open the outputs again later:
-      cnvscope serve results/<name>.h5ad
+      scnascope serve results/<name>.h5ad
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -345,7 +344,7 @@ def main(
     if missing:
         raise click.UsageError(
             f"missing {', '.join(missing)}. Example: "
-            "cnvscope --mode dna --tool chisel --input chisel_out/ --outdir results/"
+            "scnascope --mode dna --tool chisel --input chisel_out/ --outdir results/"
         )
     tools = {resolve_tool(c).name for c in chosen}
     if len(tools) > 1:
@@ -365,7 +364,7 @@ def main(
 
     src = file if input_file else find_input(tool, input_path)
     opts = {}
-    if src.suffix == ".h5ad":  # a viewer file written earlier (export_cnvscope or convert)
+    if src.suffix == ".h5ad":  # a viewer file written earlier (export_scnascope or convert)
         from .model import CNVDataset
 
         reader = readers.Reader("h5ad", MODES[mode], lambda p: True, CNVDataset.read)
@@ -387,7 +386,7 @@ def main(
     cached = None if force else cached_result(outdir, name, tool.name, src, fp)
     if cached is not None:
         # same input, unchanged since the last run: reopen its result (seconds, not minutes)
-        click.echo(f"cnvscope: {src.name} is unchanged since the last run; reopening {cached}")
+        click.echo(f"scnascope: {src.name} is unchanged since the last run; reopening {cached}")
         click.echo("          (use --force to read it again)")
         from .model import CNVDataset
 
@@ -396,11 +395,11 @@ def main(
             add_annotations(ds, annotations)
             ds.write(cached)  # keep the outputs in step with the annotations
             ds.adata.obs.to_csv(outdir / f"{name}_cells.tsv", sep="\t", index_label="cell")
-        click.echo(f"cnvscope: {ds.adata.n_obs:,} cells × {ds.adata.n_vars:,} bins")
+        click.echo(f"scnascope: {ds.adata.n_obs:,} cells × {ds.adata.n_vars:,} bins")
         if not no_view:
             run_viewer(ds, name, host, port, no_open)
         return
-    click.echo(f"cnvscope: reading {tool.label} output from {src}")
+    click.echo(f"scnascope: reading {tool.label} output from {src}")
     try:
         ds = prepare(reader.read(src, **opts))
     except Exception as e:  # noqa: BLE001 - report reader failures plainly
@@ -408,7 +407,7 @@ def main(
     if annotations:
         add_annotations(ds, annotations)
     meta = {
-        "cnvscope": __version__,
+        "scnascope": __version__,
         "mode": mode,
         "tool": tool.name,
         "input": str(input_path.resolve()),
@@ -419,7 +418,7 @@ def main(
         "command": " ".join(sys.argv),
     }
     paths = write_outputs(ds, outdir, name, meta)
-    click.echo(f"cnvscope: {ds.adata.n_obs:,} cells × {ds.adata.n_vars:,} bins")
+    click.echo(f"scnascope: {ds.adata.n_obs:,} cells × {ds.adata.n_vars:,} bins")
     for k, p in paths.items():
         click.echo(f"  {k:8} {p}")
     if not no_view:
@@ -428,15 +427,15 @@ def main(
 
 @main.command()
 def rscript() -> None:
-    """Print the path of export_cnvscope.R, for the end of an ASCAT.sc pipeline.
+    """Print the path of export_scnascope.R, for the end of an ASCAT.sc pipeline.
 
     \b
     In R:
-      source(system("cnvscope rscript", intern = TRUE))
-      export_cnvscope(res, "results/result_object.Rda")
-    writes results/result_object.cnvscope.h5ad, which cnvscope then opens instead of the .Rda.
+      source(system("scnascope rscript", intern = TRUE))
+      export_scnascope(res, "results/result_object.Rda")
+    writes results/result_object.scnascope.h5ad, which scnascope then opens instead of the .Rda.
     """
-    click.echo(Path(__file__).parent / "R" / "export_cnvscope.R")
+    click.echo(Path(__file__).parent / "R" / "export_scnascope.R")
 
 
 @main.command()
@@ -465,7 +464,7 @@ def demo(output: Path, cells: int, seed: int) -> None:
 @click.option("--tool", help="Reader to use (detected if omitted).")
 @click.option("--no-cluster", is_flag=True, help="Keep the tool's cell order.")
 def convert(path: Path, output: Path, tool: str | None, no_cluster: bool) -> None:
-    """Convert a tool's output to a cnvscope .h5ad."""
+    """Convert a tool's output to a scnascope .h5ad."""
     ds = prepare(readers.load(path, tool), cluster=not no_cluster)
     ds.write(output)
     click.echo(f"wrote {output}: {ds.adata.n_obs} cells × {ds.adata.n_vars} bins ({ds.tool})")
@@ -488,7 +487,7 @@ def serve(path: Path | None, tool: str | None, host: str, port: int, no_open: bo
             raise click.BadParameter(f"{path} does not exist", param_hint="PATH")
         ds = prepare(readers.load(path, tool))
         name = "Demo dataset" if str(path) == "demo" else path.name.split(".")[0]
-        click.echo(f"cnvscope: {ds.adata.n_obs} cells × {ds.adata.n_vars} bins ({ds.tool})")
+        click.echo(f"scnascope: {ds.adata.n_obs} cells × {ds.adata.n_vars} bins ({ds.tool})")
     run_viewer(ds, name, host, port, no_open)
 
 

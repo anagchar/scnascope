@@ -1,5 +1,5 @@
-// A dataset held in the browser (no cnvscope server): the same Meta the server
-// sends (src/cnvscope/server.py: build_meta) plus its layers in memory.
+// A dataset held in the browser (no scnascope server): the same Meta the server
+// sends (src/scnascope/server.py: build_meta) plus its layers in memory.
 
 import type { ChrInfo, Dendrogram, Meta, Semantics } from "../api/client";
 

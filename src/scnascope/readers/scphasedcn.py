@@ -162,7 +162,7 @@ def read_scphasedcn_rds(rds: Path, genome: str = "hg38", rscript: str | None = N
     exe = rscript or shutil.which("Rscript")
     if not exe:
         raise RuntimeError(f"reading {rds.name} needs R (Rscript with data.table on the PATH)")
-    print(f"cnvscope: reading {rds.name} with R ...", file=sys.stderr)
+    print(f"scnascope: reading {rds.name} with R ...", file=sys.stderr)
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "caller"
         r = subprocess.run([exe, str(SCRIPT), str(rds), str(out)], capture_output=True, text=True)

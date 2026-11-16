@@ -8,10 +8,10 @@ import pandas as pd
 import pytest
 from click.testing import CliRunner
 
-from cnvscope.annotate import annotate
-from cnvscope.cli import main
-from cnvscope.model import Semantics
-from cnvscope.readers import detect, load
+from scnascope.annotate import annotate
+from scnascope.cli import main
+from scnascope.model import Semantics
+from scnascope.readers import detect, load
 
 CELLS = ["AAACGAAAGC-1", "TTGCAGGTCA-1", "GGGTCATTAC-1"]
 # chr1 windows with one filtered out (3-4 Mb), and chr2

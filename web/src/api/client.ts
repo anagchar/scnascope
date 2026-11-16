@@ -1,4 +1,4 @@
-// Client for the cnvscope API (src/cnvscope/server.py), or, with no server
+// Client for the scnascope API (src/scnascope/server.py), or, with no server
 // (the GitHub Pages site, or a build made with VITE_STATIC=1), the same calls
 // answered in the browser from a file read locally (src/local/).
 
@@ -72,7 +72,7 @@ async function json<T>(r: Response): Promise<T> {
   return r.json();
 }
 
-/** No cnvscope server: files are read in the browser and never leave it. */
+/** No scnascope server: files are read in the browser and never leave it. */
 let browserOnly = import.meta.env.VITE_STATIC === "1";
 let local: LocalData | null = null;
 export const isBrowserOnly = () => browserOnly;
@@ -101,7 +101,7 @@ async function readLocal(bytes: Uint8Array, fileName: string, name: string): Pro
   } else {
     throw new Error(
       `${fileName}: the browser opens .h5ad files and ASCAT.sc .json exports. Read other tools' outputs ` +
-        "(and .rds/.Rda) with the cnvscope command, e.g. cnvscope --mode dna --tool chisel --input out/ --outdir results/, " +
+        "(and .rds/.Rda) with the scnascope command, e.g. scnascope --mode dna --tool chisel --input out/ --outdir results/, " +
         "and open the .h5ad it writes.",
     );
   }

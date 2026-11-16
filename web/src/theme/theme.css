@@ -1,5 +1,5 @@
-/* cnvscope styles: the ASCAT.sc Explorer's design system (its src/styles/explorer.css),
-   carried over so both viewers look alike, plus cnvscope's own additions at the end. */
+/* scnascope styles: the ASCAT.sc Explorer's design system (its src/styles/explorer.css),
+   carried over so both viewers look alike, plus scnascope's own additions at the end. */
 :root {
   /* one typeface everywhere, as in the ASCAT.sc identity: Helvetica */
   --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -302,7 +302,7 @@ table th, table td { border-bottom-color: var(--glass-line); padding: 7px 8px; }
 @keyframes pulse { 50% { opacity: 0.55; transform: scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { .pulse, .spinner { animation: none; } }
 
-/* ---------- cnvscope additions ---------- */
+/* ---------- scnascope additions ---------- */
 .logo { height: 28px; width: 28px; filter: none; }
 .upload .hero .mark { margin-bottom: 14px; }
 .layers { display: grid; gap: 4px; margin-top: 8px; }

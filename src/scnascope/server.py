@@ -105,7 +105,7 @@ class State:
 
 
 def create_app(ds: CNVDataset | None = None, name: str = "") -> FastAPI:
-    app = FastAPI(title="cnvscope", version=__version__)
+    app = FastAPI(title="scnascope", version=__version__)
     state = State(ds, name)
 
     def current() -> CNVDataset:
@@ -182,7 +182,7 @@ def create_app(ds: CNVDataset | None = None, name: str = "") -> FastAPI:
         @app.get("/", response_class=HTMLResponse)
         def no_ui() -> str:
             return (
-                "<h1>cnvscope API is running</h1><p>The web UI is not built. Run "
+                "<h1>scnascope API is running</h1><p>The web UI is not built. Run "
                 "<code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>, or use "
                 "<code>npm run dev</code> and open http://localhost:5173.</p>"
             )

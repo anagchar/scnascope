@@ -6,9 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
-from cnvscope.model import Semantics
-from cnvscope.prepare import prepare
-from cnvscope.readers import detect, load
+from scnascope.model import Semantics
+from scnascope.prepare import prepare
+from scnascope.readers import detect, load
 
 FIX = Path(__file__).parents[1] / "fixtures" / "ascatsc_json" / "demo_export.json.gz"
 

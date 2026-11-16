@@ -1,5 +1,5 @@
 # Export an ASCAT.sc result (.rds, or .Rda/.RData holding one) to the web JSON format
-# that cnvscope's ascatsc_json reader reads. Uses ascatsc_to_web.R from the ASCAT.sc Explorer.
+# that scnascope's ascatsc_json reader reads. Uses ascatsc_to_web.R from the ASCAT.sc Explorer.
 #
 #   Rscript export_ascatsc.R <result.rds|.Rda> <out.json>
 args <- commandArgs(trailingOnly = TRUE)

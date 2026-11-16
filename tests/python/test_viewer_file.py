@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cnvscope.cli import main
-from cnvscope.readers import ascatsc_r, load
+from scnascope.cli import main
+from scnascope.readers import ascatsc_r, load
 
 FIX = Path(__file__).parents[1] / "fixtures" / "ascatsc_json" / "demo_export.json.gz"
 
@@ -19,7 +19,7 @@ def no_r(monkeypatch):
     monkeypatch.setattr(ascatsc_r.shutil, "which", lambda _: None)
 
 
-def result_folder(tmp_path: Path, viewer: str | None = ".cnvscope.h5ad", older=False) -> Path:
+def result_folder(tmp_path: Path, viewer: str | None = ".scnascope.h5ad", older=False) -> Path:
     d = tmp_path / "ascat_results"
     d.mkdir()
     rda = d / "result_object.Rda"
@@ -36,7 +36,7 @@ def result_folder(tmp_path: Path, viewer: str | None = ".cnvscope.h5ad", older=F
     return d
 
 
-@pytest.mark.parametrize("viewer", [".cnvscope.h5ad", ".h5ad", ".cnvscope.json.gz"])
+@pytest.mark.parametrize("viewer", [".scnascope.h5ad", ".h5ad", ".scnascope.json.gz"])
 def test_rda_opens_from_viewer_file(tmp_path, no_r, viewer):
     d = result_folder(tmp_path, viewer)
     ds = load(d / "result_object.Rda")
@@ -65,7 +65,7 @@ def test_cli_folder_and_input_file_use_viewer_file(tmp_path, no_r):
     # the folder: picks the viewer file itself
     r = run("--input", str(d), "--outdir", str(tmp_path / "o1"))
     assert r.exit_code == 0, r.output
-    assert "result_object.cnvscope.h5ad" in r.output
+    assert "result_object.scnascope.h5ad" in r.output
     # the .Rda named: opened from the viewer file beside it
     r = run("--input-file", str(d / "result_object.Rda"), "--outdir", str(tmp_path / "o2"))
     assert r.exit_code == 0, r.output

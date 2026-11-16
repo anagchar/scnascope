@@ -44,7 +44,7 @@ def detect(path: str | Path) -> Reader | None:
 
 
 def load(path: str | Path, tool: str | None = None, **opts) -> CNVDataset:
-    """Read ``path``: an .h5ad written by cnvscope, or any registered tool's output."""
+    """Read ``path``: an .h5ad written by scnascope, or any registered tool's output."""
     p = Path(path)
     if p.suffix == ".h5ad":
         return CNVDataset.read(p)

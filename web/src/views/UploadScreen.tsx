@@ -16,7 +16,7 @@ export function UploadScreen() {
       <div className="inner">
         <div className="hero">
           <div className="mark"><LogoIcon size={150} /></div>
-          <h1>cnvscope</h1>
+          <h1>scnascope</h1>
           <p>Single-cell copy number, interactively</p>
         </div>
         <button
@@ -40,13 +40,13 @@ export function UploadScreen() {
         </div>
         <div className="card">
           <div className="hd"><h2>From the command line</h2><span className="sub">{local ? "read ASCAT.sc, HiScanner, CHISEL or epiAneufinder output into a .h5ad, then open it here" : "read a tool's output, save it as .h5ad, list the readers"}</span></div>
-          <div className="bd"><pre className="mono">{`${local ? "pip install git+https://github.com/anagchar/cnvscope\n" : ""}cnvscope --mode dna --tool chisel --input chisel_out/ --outdir results/
-cnvscope --mode atac --epianeufinder --input epi_out/ --outdir results/
-cnvscope tools`}</pre></div>
+          <div className="bd"><pre className="mono">{`${local ? "pip install git+https://github.com/anagchar/scnascope\n" : ""}scnascope --mode dna --tool chisel --input chisel_out/ --outdir results/
+scnascope --mode atac --epianeufinder --input epi_out/ --outdir results/
+scnascope tools`}</pre></div>
         </div>
         <div className="card">
           <div className="hd"><h2>From an ASCAT.sc pipeline (R)</h2><span className="sub">writes a small viewer file beside the result</span></div>
-          <div className="bd"><pre className="mono">{`source(system("cnvscope rscript", intern = TRUE))\nexport_cnvscope(res, "results/result_object.Rda")`}</pre></div>
+          <div className="bd"><pre className="mono">{`source(system("scnascope rscript", intern = TRUE))\nexport_scnascope(res, "results/result_object.Rda")`}</pre></div>
         </div>
       </div>
     </div>

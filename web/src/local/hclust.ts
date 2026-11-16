@@ -1,5 +1,5 @@
 // Leaf order of an R hclust merge matrix (left child first), as row indices.
-// A port of src/cnvscope/analysis.py: hclust_order.
+// A port of src/scnascope/analysis.py: hclust_order.
 export function layoutOrder(merge: [number, number][]): number[] {
   if (!merge.length) return [0];
   const out: number[] = [], stack = [merge.length];

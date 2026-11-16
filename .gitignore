@@ -8,8 +8,8 @@ build/
 *.egg-info/
 web/node_modules/
 web/dist/
-src/cnvscope/static/*
-!src/cnvscope/static/.gitkeep
+src/scnascope/static/*
+!src/scnascope/static/.gitkeep
 *.h5ad
 !tests/fixtures/**/*.h5ad
 .DS_Store

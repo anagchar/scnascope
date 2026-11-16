@@ -32,7 +32,7 @@ function same(got: LocalData, want: ReturnType<typeof expected>) {
 }
 
 describe("browser readers", () => {
-  it("read a cnvscope .h5ad like the server", async () => {
+  it("read a scnascope .h5ad like the server", async () => {
     same(await readH5ad(bytes("h5ad/demo_small.h5ad"), "demo_small"), expected("h5ad/demo_small.meta.json.gz"));
   });
 

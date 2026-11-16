@@ -3,7 +3,7 @@
 {% set version = "0.1.0.dev0" %}
 
 package:
-  name: cnvscope
+  name: scnascope
   version: {{ version }}
 
 source:
@@ -14,7 +14,7 @@ build:
   number: 0
   script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation -vv
   entry_points:
-    - cnvscope = cnvscope.cli:main
+    - scnascope = scnascope.cli:main
 
 requirements:
   host:
@@ -38,10 +38,10 @@ requirements:
 
 test:
   imports:
-    - cnvscope
+    - scnascope
   commands:
-    - cnvscope --help
-    - cnvscope tools
+    - scnascope --help
+    - scnascope tools
 
 about:
   summary: Interactive viewer for single-cell copy-number calls (scDNA, scRNA, scATAC)

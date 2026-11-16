@@ -37,7 +37,7 @@ export function editFilters(metric?: string) {
 export function downloadCells(d: Derived) {
   const s = useStore.getState();
   const ev = { passing: d.passing, reasons: d.reasons, failCounts: d.failCounts, nPass: d.nPass };
-  const safe = (d.meta.name || "cnvscope").replace(/[^\w.-]+/g, "_");
+  const safe = (d.meta.name || "scnascope").replace(/[^\w.-]+/g, "_");
   downloadText(cellsTable(d.meta, d.vals, s.filters ?? {}, ev), `${safe}_cells_qc.tsv`);
 }
 

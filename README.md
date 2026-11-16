@@ -1,10 +1,10 @@
-# cnvscope
+# scnascope
 
 Interactive viewer for single-cell copy-number calls, across modalities.
 
-**Web app:** https://anagchar.github.io/cnvscope: open a cnvscope `.h5ad` or an ASCAT.sc
+**Web app:** https://anagchar.github.io/scnascope: open a scnascope `.h5ad` or an ASCAT.sc
 `.json(.gz)` export, or the demo dataset. Files are read in your browser and never uploaded.
-The `cnvscope` command (below) reads the tools' outputs and writes those `.h5ad` files.
+The `scnascope` command (below) reads the tools' outputs and writes those `.h5ad` files.
 
 
 | Modality | Tools (planned order) |
@@ -45,7 +45,7 @@ Readers (checked on real outputs): ASCAT.sc result objects (`.rds`/`.Rda`, via R
 
 ```bash
 conda env create -f environment.yml     # Python, Node.js (builds the interface), R for .rds/.Rda
-conda activate cnvscope
+conda activate scnascope
 ```
 
 A conda package can be built from `conda/meta.yaml` (`conda build conda/`).
@@ -55,17 +55,17 @@ A conda package can be built from `conda/meta.yaml` (`conda build conda/`).
 One command: the data type, the tool, its output folder, and where to write the results.
 
 ```bash
-cnvscope --mode dna --tool chisel    --input chisel_out/        --outdir results/
-cnvscope --mode dna --tool hiscanner --input hiscanner_output/  --outdir results/
-cnvscope --mode dna --tool ascatsc   --input ascatsc_results/   --outdir results/
-cnvscope --mode dna --chisel --input chisel_out/ --outdir results/      # shorthand
+scnascope --mode dna --tool chisel    --input chisel_out/        --outdir results/
+scnascope --mode dna --tool hiscanner --input hiscanner_output/  --outdir results/
+scnascope --mode dna --tool ascatsc   --input ascatsc_results/   --outdir results/
+scnascope --mode dna --chisel --input chisel_out/ --outdir results/      # shorthand
 ```
 
 To read one specific file, for example an ASCAT.sc folder with several result objects:
 
 ```bash
-cnvscope --mode dna --tool ascatsc --input ascatsc_results/ --input-file results.rds --outdir results/
-cnvscope --mode dna --tool ascatsc --input-file /path/to/results.rds --outdir results/   # a full path alone
+scnascope --mode dna --tool ascatsc --input ascatsc_results/ --input-file results.rds --outdir results/
+scnascope --mode dna --tool ascatsc --input-file /path/to/results.rds --outdir results/   # a full path alone
 ```
 
 | `--mode` | `--tool` |
@@ -77,7 +77,7 @@ cnvscope --mode dna --tool ascatsc --input-file /path/to/results.rds --outdir re
 
 It writes to `--outdir`, then opens the viewer:
 
-- `<name>.h5ad`: the dataset; open it again in seconds with `cnvscope serve results/<name>.h5ad`
+- `<name>.h5ad`: the dataset; open it again in seconds with `scnascope serve results/<name>.h5ad`
 - `<name>_cells.tsv`: one row per cell with its annotations (clone, cluster, cell type) and QC metrics
 - `<name>_run.json`: what was run, on what, when, and what was written
 
@@ -92,7 +92,7 @@ normal compartment are cell columns. A folder with several runs (e.g. `1MB/`, `2
 refused with their names: point `--input` at one.
 
 ```bash
-cnvscope --mode multiome --numbat --input Numbat-multiome/1MB --outdir results/
+scnascope --mode multiome --numbat --input Numbat-multiome/1MB --outdir results/
 ```
 
 scphasedcn: normal mode paints each cell's reportable calls (arm, chromosome, 5-50 Mb tiles,
@@ -110,7 +110,7 @@ it: R (with data.table; scphasedcn itself is not needed) writes its tables first
 `<sample>/extract/` beside it is found for the read counts.
 
 ```bash
-cnvscope --mode dna --scphasedcn --input-file scphasedcn/COLO829BL_call_scn.rds --outdir results/
+scnascope --mode dna --scphasedcn --input-file scphasedcn/COLO829BL_call_scn.rds --outdir results/
 ```
 
 Cell annotations (cell types from RNA, ArchR clusters, samples, ...) are joined with
@@ -120,31 +120,31 @@ ArchR `sample#` prefixes; a `cell_type` column (or epiAneufinder's `annot`) beco
 heatmap's annotation track.
 
 ```bash
-cnvscope --mode atac --epianeufinder --input epi_out/ --annotations cells.csv --outdir results/
+scnascope --mode atac --epianeufinder --input epi_out/ --annotations cells.csv --outdir results/
 ```
 
 `<name>` is the input folder's name (or the file's, for a lone `--input-file`), or `--name`.
 Options: `--no-view` (only write the outputs), `--port` (the next free port is used if it is
-taken, e.g. by another viewer), `--no-open`. `cnvscope tools` lists the tools; `cnvscope --help` shows everything.
+taken, e.g. by another viewer), `--no-open`. `scnascope tools` lists the tools; `scnascope --help` shows everything.
 
-Other commands: `cnvscope serve [file or folder]` (no argument: the upload screen),
-`cnvscope convert <input> -o x.h5ad`, `cnvscope demo`, `cnvscope rscript`.
+Other commands: `scnascope serve [file or folder]` (no argument: the upload screen),
+`scnascope convert <input> -o x.h5ad`, `scnascope demo`, `scnascope rscript`.
 
 ### ASCAT.sc: write the viewer file in the pipeline
 
 Reading a large `.Rda`/`.rds` means starting R and loading the whole object, which takes
 minutes on a network drive. Write a small viewer file beside it once, at the end of the
-ASCAT.sc pipeline (where `cnvscope` is installed, e.g. on the cluster):
+ASCAT.sc pipeline (where `scnascope` is installed, e.g. on the cluster):
 
 ```r
-source(system("cnvscope rscript", intern = TRUE))   # path of R/export_cnvscope.R
+source(system("scnascope rscript", intern = TRUE))   # path of R/export_scnascope.R
 save(res, file = "results/result_object.Rda")
-export_cnvscope(res, "results/result_object.Rda")    # -> results/result_object.cnvscope.h5ad
+export_scnascope(res, "results/result_object.Rda")    # -> results/result_object.scnascope.h5ad
 ```
 
-Whenever cnvscope is given `results/result_object.Rda` (or the `results/` folder), it first
-looks beside it for `result_object.cnvscope.h5ad` (or `result_object.h5ad`, or
-`result_object.cnvscope.json.gz`, which is written when the `cnvscope` command is not
+Whenever scnascope is given `results/result_object.Rda` (or the `results/` folder), it first
+looks beside it for `result_object.scnascope.h5ad` (or `result_object.h5ad`, or
+`result_object.scnascope.json.gz`, which is written when the `scnascope` command is not
 available to R) and opens that instead, in seconds. A viewer file older than the object is
 ignored, and `--force` reads the object itself.
 
@@ -154,8 +154,8 @@ ignored, and `--force` reads the object itself.
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 cd web && npm install
 npm run dev                         # Vite on :5173, proxies /api to :8765
-cnvscope serve demo.h5ad --no-open  # in another shell
-npm run build                       # writes the UI into src/cnvscope/static
+scnascope serve demo.h5ad --no-open  # in another shell
+npm run build                       # writes the UI into src/scnascope/static
 ```
 
 `pip install .` builds the interface itself when it isn't built yet and Node.js is available
@@ -168,7 +168,7 @@ Tests: `pytest`, `cd web && npm test`. Lint: `ruff check .`, `cd web && npm run 
 The same interface, built to run without the Python server (`vite build --mode pages`):
 `.h5ad` files are read with [h5wasm](https://github.com/usnistgov/h5wasm) and ASCAT.sc exports
 in TypeScript (`web/src/local/`, with the QC metrics ported from `qc.py`; tests check both
-against the Python). Deploy it to the `gh-pages` branch, with `cnvscope` on the PATH (it writes
+against the Python). Deploy it to the `gh-pages` branch, with `scnascope` on the PATH (it writes
 the demo dataset into the site):
 
 ```bash
@@ -180,11 +180,11 @@ Preview it first with `npm run build:pages && python -m http.server -d dist-page
 
 ## Layout
 
-- `src/cnvscope/model.py`: the canonical dataset: modalities, value semantics, validation, .h5ad I/O
-- `src/cnvscope/genome.py`: chromosome sizes, bin grids, segments → bins
-- `src/cnvscope/analysis.py`: Ward.D2 / Manhattan clustering (total and allele-specific)
-- `src/cnvscope/qc.py`: per-cell QC metrics as ASCAT.sc's getQCs() computes them
-- `src/cnvscope/readers/`: one module per tool, plus a registry with format detection
-- `src/cnvscope/server.py`: FastAPI: dataset metadata and binary matrix chunks
-- `src/cnvscope/cli.py`: the command line (`--mode/--tool/--input/--outdir`, `serve`, `convert`)
+- `src/scnascope/model.py`: the canonical dataset: modalities, value semantics, validation, .h5ad I/O
+- `src/scnascope/genome.py`: chromosome sizes, bin grids, segments → bins
+- `src/scnascope/analysis.py`: Ward.D2 / Manhattan clustering (total and allele-specific)
+- `src/scnascope/qc.py`: per-cell QC metrics as ASCAT.sc's getQCs() computes them
+- `src/scnascope/readers/`: one module per tool, plus a registry with format detection
+- `src/scnascope/server.py`: FastAPI: dataset metadata and binary matrix chunks
+- `src/scnascope/cli.py`: the command line (`--mode/--tool/--input/--outdir`, `serve`, `convert`)
 - `web/`: Vite + React + TypeScript UI (WebGL2 heatmap)

@@ -1,5 +1,5 @@
-// ASCAT.sc web export (ascat_data.json[.gz], from rds_to_web() or export_cnvscope())
-// read in the browser. A port of src/cnvscope/readers/ascatsc_json.py: from_dict.
+// ASCAT.sc web export (ascat_data.json[.gz], from rds_to_web() or export_scnascope())
+// read in the browser. A port of src/scnascope/readers/ascatsc_json.py: from_dict.
 
 import type { Dendrogram, Semantics } from "../api/client";
 import { layoutOrder } from "./hclust";

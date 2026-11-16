@@ -1,4 +1,4 @@
-"""The one-command run: cnvscope --mode --tool --input --outdir."""
+"""The one-command run: scnascope --mode --tool --input --outdir."""
 
 import json
 from pathlib import Path
@@ -8,7 +8,7 @@ import pandas as pd
 from click.testing import CliRunner
 from test_tool_readers import write_chisel
 
-from cnvscope.cli import main
+from scnascope.cli import main
 
 FIX = Path(__file__).parents[1] / "fixtures" / "ascatsc_json"
 
@@ -83,14 +83,14 @@ def test_helpful_errors(tmp_path):
 
 
 def test_help_and_tools():
-    assert "cnvscope --mode dna --tool chisel" in run().output
+    assert "scnascope --mode dna --tool chisel" in run().output
     assert "chisel" in run("tools").output and "planned" in run("tools").output
 
 
 def test_busy_port_moves_to_the_next_free_one():
     import socket
 
-    from cnvscope.cli import free_port
+    from scnascope.cli import free_port
 
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))

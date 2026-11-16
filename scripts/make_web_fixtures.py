@@ -10,10 +10,10 @@ from pathlib import Path
 
 import numpy as np
 
-from cnvscope.prepare import prepare
-from cnvscope.readers import load
-from cnvscope.readers.demo import make_demo
-from cnvscope.server import build_meta
+from scnascope.prepare import prepare
+from scnascope.readers import load
+from scnascope.readers.demo import make_demo
+from scnascope.server import build_meta
 
 FIX = Path(__file__).parents[1] / "tests" / "fixtures"
 
@@ -31,7 +31,7 @@ def main() -> None:
     ds = make_demo(n_cells=40, seed=3)
     ds.write(FIX / "h5ad" / "demo_small.h5ad")
     dump(ds, "demo_small", FIX / "h5ad" / "demo_small.meta.json.gz")
-    # the ASCAT.sc export as `cnvscope serve` shows it: reader, then QC (it has a dendrogram)
+    # the ASCAT.sc export as `scnascope serve` shows it: reader, then QC (it has a dendrogram)
     ds = prepare(load(FIX / "ascatsc_json" / "demo_export.json.gz"), cluster=False)
     dump(ds, "demo_export", FIX / "ascatsc_json" / "demo_export.meta.json.gz")
 

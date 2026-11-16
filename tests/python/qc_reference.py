@@ -1,6 +1,6 @@
 """Reference: the original per-cell QC implementation (one cell at a time).
 
-The vectorised cnvscope.qc must give the same numbers; test_qc_fast.py compares them.
+The vectorised scnascope.qc must give the same numbers; test_qc_fast.py compares them.
 """
 
 # ruff: noqa
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cnvscope.model import CNVDataset, Semantics
+from scnascope.model import CNVDataset, Semantics
 
 
 def gini(values: np.ndarray) -> float:

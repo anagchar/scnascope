@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 from fastapi.testclient import TestClient
 
-from cnvscope.readers.demo import make_demo
-from cnvscope.server import create_app
+from scnascope.readers.demo import make_demo
+from scnascope.server import create_app
 
 FIX = Path(__file__).parents[1] / "fixtures" / "ascatsc_json" / "demo_export.json.gz"
 

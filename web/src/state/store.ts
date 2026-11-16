@@ -185,7 +185,7 @@ export const useStore = create<State>((set, get) => ({
     const theme: Theme = get().theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem("cnvscope-theme", theme);
+      localStorage.setItem("scnascope-theme", theme);
     } catch {
       /* storage blocked */
     }
@@ -201,7 +201,7 @@ export const useStore = create<State>((set, get) => ({
 
   setPalette: (palette) => {
     try {
-      localStorage.setItem("cnvscope-palette", palette);
+      localStorage.setItem("scnascope-palette", palette);
     } catch {
       /* storage blocked */
     }

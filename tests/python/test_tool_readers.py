@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from cnvscope.model import Semantics
-from cnvscope.prepare import prepare
-from cnvscope.readers import detect, load
+from scnascope.model import Semantics
+from scnascope.prepare import prepare
+from scnascope.readers import detect, load
 
 CHISEL_HEAD = (
     "#CHR\tSTART\tEND\tCELL\tNORM_COUNT\tCOUNT\tRDR\tA_COUNT\tB_COUNT\tBAF\tCLUSTER\t"

@@ -100,7 +100,7 @@ export function cellsTable(meta: Meta, vals: Record<string, ArrayLike<number>>, 
   const annots = Object.keys(meta.obs_kinds).filter((k) => meta.obs_kinds[k] !== "numeric");
   const active = Object.entries(filters).filter(([, f]) => isActive(f));
   const lines = [
-    `# cnvscope ${meta.version} · ${meta.name} · ${meta.tool} · ${new Date().toISOString().slice(0, 19)}Z`,
+    `# scnascope ${meta.version} · ${meta.name} · ${meta.tool} · ${new Date().toISOString().slice(0, 19)}Z`,
     `# ${ev.nPass} of ${meta.n_cells} cells pass the filters`,
     ...(active.length ? active.map(([k, f]) => `# filter: ${k} ${describe(k, f)}`) : ["# filter: none"]),
     ["cell", "passes_qc", "failed", ...annots, ...metrics].join("\t"),

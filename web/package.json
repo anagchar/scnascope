@@ -1,5 +1,5 @@
 {
-  "name": "cnvscope-web",
+  "name": "scnascope-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint . && tsc -b --noEmit",
-    "build:pages": "tsc -b && vite build --mode pages && cnvscope demo -o dist-pages/demo.h5ad",
+    "build:pages": "tsc -b && vite build --mode pages && scnascope demo -o dist-pages/demo.h5ad",
     "predeploy": "npm run build:pages",
     "deploy": "gh-pages -d dist-pages --nojekyll"
   },

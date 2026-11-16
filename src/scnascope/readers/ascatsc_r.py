@@ -4,7 +4,7 @@ Converted with the ASCAT.sc Explorer's own R exporter (``R/ascatsc_to_web.R``, s
 package) through ``Rscript``, then read as an ASCAT.sc web export. Needs R with the
 ``data.table`` and ``jsonlite`` packages. Large results take minutes, so a viewer file beside
 the object is used instead when there is one (see :func:`viewer_file`): write it once at the end
-of the ASCAT.sc pipeline with ``export_cnvscope()`` (``R/export_cnvscope.R``).
+of the ASCAT.sc pipeline with ``export_scnascope()`` (``R/export_scnascope.R``).
 """
 
 from __future__ import annotations
@@ -22,14 +22,23 @@ from .ascatsc_json import _open, from_dict
 SCRIPT = Path(__file__).parents[1] / "R" / "export_ascatsc.R"
 SUFFIXES = (".rds", ".rda", ".rdata")
 #: viewer files looked for beside results/x.Rda, best first
-VIEWER_SUFFIXES = (".cnvscope.h5ad", ".h5ad", ".cnvscope.json.gz", ".cnvscope.json")
+VIEWER_SUFFIXES = (
+    ".scnascope.h5ad",
+    ".h5ad",
+    ".scnascope.json.gz",
+    ".scnascope.json",
+    # written before the rename from cnvscope
+    ".cnvscope.h5ad",
+    ".cnvscope.json.gz",
+    ".cnvscope.json",
+)
 
 
 def viewer_file(path: Path) -> Path | None:
-    """The small file cnvscope opens instead of the R object ``path``, if one is beside it.
+    """The small file scnascope opens instead of the R object ``path``, if one is beside it.
 
-    ``results/x.Rda`` -> ``results/x.cnvscope.h5ad`` (written by ``export_cnvscope()``),
-    ``results/x.h5ad``, or ``results/x.cnvscope.json.gz``. One older than the object is
+    ``results/x.Rda`` -> ``results/x.scnascope.h5ad`` (written by ``export_scnascope()``),
+    ``results/x.h5ad``, or ``results/x.scnascope.json.gz``. One older than the object is
     ignored: the object was saved again after it.
     """
     stem = path.name[: -len(path.suffix)] if path.suffix.lower() in SUFFIXES else path.name
@@ -43,7 +52,9 @@ def viewer_file(path: Path) -> Path | None:
             if f.is_file() and f.stat().st_mtime >= made - 1:
                 return f
             if f.is_file():
-                print(f"cnvscope: ignoring {f.name}, it is older than {path.name}", file=sys.stderr)
+                print(
+                    f"scnascope: ignoring {f.name}, it is older than {path.name}", file=sys.stderr
+                )
         except OSError:
             continue
     return None
@@ -64,7 +75,7 @@ def read_ascatsc_r(
 ) -> CNVDataset:
     """Read an ASCAT.sc .rds/.Rda: from its viewer file if it has one, else through R."""
     if use_viewer_file and (f := viewer_file(path)) is not None:
-        print(f"cnvscope: using {f.name} beside {path.name} (fast; no R needed)", file=sys.stderr)
+        print(f"scnascope: using {f.name} beside {path.name} (fast; no R needed)", file=sys.stderr)
         return read_viewer_file(f)
     exe = rscript or shutil.which("Rscript")
     if not exe:

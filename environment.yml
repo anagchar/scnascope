@@ -1,11 +1,11 @@
-# cnvscope in its own conda environment:
+# scnascope in its own conda environment:
 #
 #   conda env create -f environment.yml
-#   conda activate cnvscope
-#   cnvscope --mode dna --tool chisel --input chisel_out/ --outdir results/
+#   conda activate scnascope
+#   scnascope --mode dna --tool chisel --input chisel_out/ --outdir results/
 #
-# The last pip step installs cnvscope from this folder and builds its web interface (Node.js).
-name: cnvscope
+# The last pip step installs scnascope from this folder and builds its web interface (Node.js).
+name: scnascope
 channels:
   - conda-forge
   - bioconda

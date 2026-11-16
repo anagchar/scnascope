@@ -1,4 +1,4 @@
-// The cnvscope mark: the ASCAT.sc karyotype (four chromosomes, centromere dots, red gains,
+// The scnascope mark: the ASCAT.sc karyotype (four chromosomes, centromere dots, red gains,
 // a blue loss), drawn as in the original: chromosomes filled with the background colour and
 // outlined in the text colour, so they are white with a dark outline on a light page and dark
 // with a white outline on a dark page. No tile. Colours: --logo-* in theme.css.
@@ -15,7 +15,7 @@ export const CHROMOSOMES: [number, number, number, [number, number, "gain" | "lo
 /** the mark's own box, outline included: x 22.5–97.5, y 25–95 */
 const VIEW = "21 24 78 72";
 
-export function LogoIcon({ size = 32, title = "cnvscope" }: { size?: number; title?: string }) {
+export function LogoIcon({ size = 32, title = "scnascope" }: { size?: number; title?: string }) {
   return (
     <svg className="logo-icon" height={size} width={(size * 78) / 72} viewBox={VIEW} role="img" aria-label={title}>
       {CHROMOSOMES.map(([x, y, h, bands], i) => (

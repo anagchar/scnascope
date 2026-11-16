@@ -1,5 +1,5 @@
-// Per-cell QC metrics in the browser, for files opened without the cnvscope
-// server. A port of src/cnvscope/qc.py (qc_matrices + compute_qc): same
+// Per-cell QC metrics in the browser, for files opened without the scnascope
+// server. A port of src/scnascope/qc.py (qc_matrices + compute_qc): same
 // definitions, written one cell at a time; tests check it against the Python.
 
 import type { Semantics } from "../api/client";

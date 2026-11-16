@@ -32,7 +32,7 @@ export function FiltersPanel() {
   };
   const oi = met.findIndex((m) => m.key === open);
   const go = (k: number) => setOpen(met[(oi + k + met.length) % met.length].key);
-  const safe = (meta.name || "cnvscope").replace(/[^\w.-]+/g, "_");
+  const safe = (meta.name || "scnascope").replace(/[^\w.-]+/g, "_");
 
   return (
     <aside className="fpanel" aria-label="QC filters">

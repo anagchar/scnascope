@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from cnvscope.analysis import scipy_to_hclust
-from cnvscope.genome import segments_to_bins, uniform_bins
-from cnvscope.model import CNVDataset, Semantics, ValidationError
-from cnvscope.readers import REGISTRY, load
-from cnvscope.readers.demo import make_demo
+from scnascope.analysis import scipy_to_hclust
+from scnascope.genome import segments_to_bins, uniform_bins
+from scnascope.model import CNVDataset, Semantics, ValidationError
+from scnascope.readers import REGISTRY, load
+from scnascope.readers.demo import make_demo
 
 
 def tiny(**kw) -> CNVDataset:
@@ -120,14 +120,14 @@ def test_demo_registered():
 def test_ward_d2_on_manhattan_matches_r():
     # ward.D2 Lance-Williams by hand: {0,1} at 1, then +2 at sqrt(25/3), then +3 at sqrt(98/3)
     x = np.array([[0, 0], [1, 0], [3, 0], [6, 0.0]])
-    from cnvscope.analysis import ward_manhattan
+    from scnascope.analysis import ward_manhattan
 
     h = ward_manhattan(x)
     np.testing.assert_allclose(sorted(h["height"]), [1, np.sqrt(25 / 3), np.sqrt(98 / 3)])
 
 
 def test_hclust_order_left_first():
-    from cnvscope.analysis import hclust_order
+    from scnascope.analysis import hclust_order
 
     merge = np.array([[-2, -3], [-1, 1]])
     assert hclust_order(merge).tolist() == [0, 1, 2]

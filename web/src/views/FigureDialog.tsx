@@ -154,7 +154,7 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
       const c = document.createElement("canvas");
       c.width = W; c.height = H;
       draw(c.getContext("2d")!, dpi / 72);
-      const base = `${(meta.name || "cnvscope").replace(/[^\w.-]+/g, "_")}_${kind === "heatmap" ? (isAllele ? "allele_heatmap" : "heatmap") : cellName.replace(/[^\w.-]+/g, "_") || "profile"}`;
+      const base = `${(meta.name || "scnascope").replace(/[^\w.-]+/g, "_")}_${kind === "heatmap" ? (isAllele ? "allele_heatmap" : "heatmap") : cellName.replace(/[^\w.-]+/g, "_") || "profile"}`;
       if (format === "pdf") {
         const { jsPDF } = await import("jspdf");
         const pdf = new jsPDF({ unit: "mm", format: [widthMm, heightMm], orientation: widthMm > heightMm ? "landscape" : "portrait" });

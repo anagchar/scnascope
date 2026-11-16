@@ -1,5 +1,5 @@
 # ruff: noqa: E501 (SVG markup)
-"""Write the cnvscope logo files (web/public/brand and the favicon) from one geometry.
+"""Write the scnascope logo files (web/public/brand and the favicon) from one geometry.
 
 The ASCAT.sc karyotype (four chromosomes, centromere dots, red gains, a blue loss) as in the
 original: chromosomes filled with the background colour and outlined, no tile. Same geometry as
@@ -39,13 +39,13 @@ def mark(fill: str, line: str) -> str:
 
 def icon(fill: str, line: str) -> str:
     vx, vy, vw, vh = VIEW
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vx} {vy} {vw} {vh}" width="{vw * 13}" height="{vh * 13}"><title>cnvscope</title>{mark(fill, line)}</svg>\n'
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vx} {vy} {vw} {vh}" width="{vw * 13}" height="{vh * 13}"><title>scnascope</title>{mark(fill, line)}</svg>\n'
 
 
 def wordmark(fill: str, line: str) -> str:
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 22 330 76" width="1320" height="304"><title>cnvscope</title>'
-        f'{mark(fill, line)}<text x="112" y="74" font-family="{FONT}" font-weight="500" font-size="44" letter-spacing="-1.3" fill="{line}">cnvscope</text></svg>\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 22 330 76" width="1320" height="304"><title>scnascope</title>'
+        f'{mark(fill, line)}<text x="112" y="74" font-family="{FONT}" font-weight="500" font-size="44" letter-spacing="-1.3" fill="{line}">scnascope</text></svg>\n'
     )
 
 
@@ -60,7 +60,7 @@ def favicon() -> str:
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     for name, (fill, line) in THEMES.items():
-        (OUT / f"cnvscope-icon-{name}.svg").write_text(icon(fill, line))
-        (OUT / f"cnvscope-wordmark-{name}.svg").write_text(wordmark(fill, line))
+        (OUT / f"scnascope-icon-{name}.svg").write_text(icon(fill, line))
+        (OUT / f"scnascope-wordmark-{name}.svg").write_text(wordmark(fill, line))
     (OUT.parent / "favicon.svg").write_text(favicon())
     print("wrote", sorted(p.name for p in OUT.iterdir()), "and favicon.svg")

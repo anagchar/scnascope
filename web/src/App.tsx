@@ -72,7 +72,7 @@ function Explorer({ meta }: { meta: Meta }) {
       <header>
         <div className="brand">
           <LogoIcon size={36} />
-          cnvscope
+          scnascope
         </div>
         <div className="project" title={meta.name}>{meta.name}</div>
         <div className="chips">

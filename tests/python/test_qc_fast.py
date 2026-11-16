@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 import qc_reference as ref
 
-from cnvscope.qc import qc_matrices
-from cnvscope.readers import load
-from cnvscope.readers.demo import make_demo
+from scnascope.qc import qc_matrices
+from scnascope.readers import load
+from scnascope.readers.demo import make_demo
 
 FIX = Path(__file__).parents[1] / "fixtures" / "ascatsc_json" / "demo_export.json.gz"
 
@@ -69,7 +69,7 @@ def test_matches_reference_on_ascatsc_export():
 
 
 def test_saved_qc_is_not_recomputed(tmp_path):
-    from cnvscope.prepare import prepare
+    from scnascope.prepare import prepare
 
     ds = make_demo(n_cells=20)
     assert ds.adata.uns["qc"]["version"] == 1

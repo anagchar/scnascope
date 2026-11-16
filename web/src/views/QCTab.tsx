@@ -561,7 +561,7 @@ export function QCTab({ children }: { children: ReactNode }) {
           <div className="fbar">
             <button className="iconbtn" onClick={() => set({ filters: defaultFilters(vals, meta.tool) })} title="The ASCAT.sc Explorer's defaults: median + 2 MAD for the residual and MAPD, percentiles for coverage, CNA bins and Gini">Defaults</button>
             <button className="iconbtn" disabled={!nActive} onClick={() => set({ filters: {} })}>Clear all</button>
-            <button className="iconbtn" onClick={() => downloadText(cellsTable(meta, vals, filters, d), `${(meta.name || "cnvscope").replace(/[^\w.-]+/g, "_")}_cells_qc.tsv`)} title="Every cell with pass/fail, the failed filters and all metrics (TSV)"><DlIcon />Download cells</button>
+            <button className="iconbtn" onClick={() => downloadText(cellsTable(meta, vals, filters, d), `${(meta.name || "scnascope").replace(/[^\w.-]+/g, "_")}_cells_qc.tsv`)} title="Every cell with pass/fail, the failed filters and all metrics (TSV)"><DlIcon />Download cells</button>
           </div>
         </div>
         <div className="bd">

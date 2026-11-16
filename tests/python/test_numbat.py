@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 from click.testing import CliRunner
 
-from cnvscope.cli import main
-from cnvscope.readers import detect, load
-from cnvscope.readers.numbat import _categorical_strings
+from scnascope.cli import main
+from scnascope.readers import detect, load
+from scnascope.readers.numbat import _categorical_strings
 
 CELLS = ["AAAC", "GGTT", "TTAG", "CCGA"]
 # 1 Mb bins on chr1 (0-5 Mb) and chr2 (0-3 Mb), as Numbat-multiome names them
@@ -99,7 +99,7 @@ def test_expression_follows_the_bins(tmp_path):
 
 
 def test_no_dna_qc_metrics(tmp_path):
-    from cnvscope.prepare import prepare
+    from scnascope.prepare import prepare
 
     ds = prepare(load(write_run(tmp_path / "numbat_out")))
     assert "mapd" not in ds.adata.obs and "median_residual" not in ds.adata.obs

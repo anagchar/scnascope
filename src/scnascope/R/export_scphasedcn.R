@@ -1,10 +1,10 @@
 # Write the tables of a scphasedcn result object (call_scn(), saved with saveRDS()) to a folder,
-# as write_scphasedcn() does, for cnvscope to read:
+# as write_scphasedcn() does, for scnascope to read:
 #
 #   Rscript export_scphasedcn.R COLO829BL_call_scn.rds out_dir/
 #
 # Uses write_scphasedcn() when the scphasedcn package is installed; otherwise writes the tables
-# cnvscope needs with data.table alone (cells, calls, regions, thresholds; tumour mode: clones,
+# scnascope needs with data.table alone (cells, calls, regions, thresholds; tumour mode: clones,
 # assignments, clone segments) and the run notes (mode, sex, extraction dir).
 
 args <- commandArgs(trailingOnly = TRUE)

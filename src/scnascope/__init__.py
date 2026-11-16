@@ -1,4 +1,4 @@
-"""cnvscope: interactive viewer for single-cell copy-number calls."""
+"""scnascope: interactive viewer for single-cell copy-number calls."""
 
 from .model import CNVDataset, Modality, Semantics
 
