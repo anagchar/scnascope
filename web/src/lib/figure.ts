@@ -4,7 +4,7 @@
 import type { CellDetail, Meta } from "../api/client";
 import { chrLabel, css, niceTicks } from "./canvas";
 import { layoutVisible } from "./dendrogram";
-import { STAIN_COLORS, binAt, binColumns, binRange, chromLabels, type Band } from "./genome";
+import { STAIN_COLORS, barEnd, binAt, binColumns, binRange, chromLabels, typicalSpan, type Band } from "./genome";
 import { buildLut, discreteColor, valueToUnit, type Scale } from "./scales";
 
 export const FIG_FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
@@ -395,10 +395,11 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
     g.save(); g.translate(pad + fs * 0.5, rt + rh / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.fillStyle = T.ink2; g.fillText("Reads", 0, 0); g.restore();
     g.save(); g.beginPath(); g.rect(left, rt, right - left, rh); g.clip();
     g.fillStyle = T.bars; g.globalAlpha = 0.85;
+    const typical = typicalSpan(B.start_cum, B.end_cum); // wide bins: a typical bin's width, the gap empty
     for (let i = b0; i < b1; i++) {
       const v = o.reads[i];
       if (v == null) continue;
-      const a = xs(B.start_cum[i]), b = xs(B.end_cum[i]), y = RY(v);
+      const a = xs(B.start_cum[i]), b = xs(barEnd(B.start_cum, B.end_cum, i, typical)), y = RY(v);
       g.fillRect(a, y, Math.max(0.2, b - a), rt + rh - y);
     }
     g.restore();

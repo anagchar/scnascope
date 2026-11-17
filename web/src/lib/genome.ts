@@ -33,6 +33,25 @@ export function binColumns(
   return out;
 }
 
+/** A bin wider than this many typical bins swallowed a stretch with no mappable sequence. */
+export const WIDE_BIN = 3;
+
+/** The median bin span (cumulative coordinates). */
+export function typicalSpan(startCum: ArrayLike<number>, endCum: ArrayLike<number>): number {
+  const w = Array.from(endCum, (e, i) => e - startCum[i]).sort((a, b) => a - b);
+  return w.length ? w[w.length >> 1] : 0;
+}
+
+/**
+ * Where a bin's bar ends. A bin much wider than a typical one (a centromere, heterochromatin or
+ * another unmappable stretch merged into it, e.g. ASCAT.sc's chr9:38-69 Mb) is drawn a typical
+ * bin's width from its start: its reads come from little sequence, so they are not spread over
+ * the gap, which stays empty.
+ */
+export function barEnd(startCum: ArrayLike<number>, endCum: ArrayLike<number>, i: number, typical: number): number {
+  return typical > 0 && endCum[i] - startCum[i] > WIDE_BIN * typical ? startCum[i] + typical : endCum[i];
+}
+
 /** Visible bins [b0, b1) of the genomic window [gx0, gx1]. */
 export function binRange(startCum: ArrayLike<number>, endCum: ArrayLike<number>, gx0: number, gx1: number): [number, number] {
   const n = endCum.length;

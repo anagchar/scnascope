@@ -1,7 +1,7 @@
 import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { fetchCell, type CellDetail, type Meta } from "../api/client";
 import { FONT, axes, chrLabel, css, esc, fit, fmt, fmtBp, fmtCount, fmtInt, niceTicks, tip } from "../lib/canvas";
-import { binAt, binRange, chromLabels } from "../lib/genome";
+import { barEnd, binAt, binRange, chromLabels, typicalSpan } from "../lib/genome";
 import { fails } from "../lib/filters";
 import { fmtMetric, isOutlier } from "../lib/metrics";
 import { DIVERGING, PALETTES } from "../lib/palettes";
@@ -422,6 +422,7 @@ function ReadDepthPlot({ reads, height = 120 }: { reads: Vals; height?: number }
   const B = meta.bins, genomeMax = B.end_cum[meta.n_bins - 1];
   const [gx0, gx1] = zoom?.x ?? [0, genomeMax];
   const T = 18, BOT = 6;
+  const typical = useMemo(() => typicalSpan(B.start_cum, B.end_cum), [B]);
   useEffect(() => {
     const c = cv.current;
     if (!c) return;
@@ -442,26 +443,50 @@ function ReadDepthPlot({ reads, height = 120 }: { reads: Vals; height?: number }
     for (const t of niceTicks(0, max, 3)) { g.beginPath(); g.moveTo(PR.l, Y(t)); g.lineTo(PR.l + plotW, Y(t)); g.stroke(); g.fillText(String(t), PR.l - 8, Y(t)); }
     drawChromosomes(g, meta, xS, gx0, gx1, T, plotH, null);
     g.save(); g.beginPath(); g.rect(PR.l, 0, plotW, height); g.clip();
+    // a bin much wider than typical (a centromere or other unmappable stretch merged into it):
+    // its bar is a typical bin wide, and the rest of its span is hatched, with no reads drawn
+    g.strokeStyle = css("--grid"); g.lineWidth = 1;
+    for (let i = b0; i < b1; i++) {
+      const e = barEnd(B.start_cum, B.end_cum, i, typical);
+      if (e >= B.end_cum[i]) continue;
+      const a = xS(e), b = xS(B.end_cum[i]);
+      g.save(); g.beginPath(); g.rect(a, T, b - a, plotH); g.clip();
+      g.beginPath();
+      for (let x = a - plotH; x < b; x += 6) { g.moveTo(x, T + plotH); g.lineTo(x + plotH, T); }
+      g.stroke(); g.restore();
+    }
     g.fillStyle = css("--series1"); g.globalAlpha = 0.75;
     for (let i = b0; i < b1; i++) {
       const v = reads[i];
       if (v == null) continue;
-      const x0 = xS(B.start_cum[i]), x1 = xS(B.end_cum[i]), y = Y(v);
+      const x0 = xS(B.start_cum[i]), x1 = xS(barEnd(B.start_cum, B.end_cum, i, typical)), y = Y(v);
       g.fillRect(x0, y, Math.max(0.6, x1 - x0), T + plotH - y);
     }
     g.globalAlpha = 1;
     g.fillStyle = css("--serious");
     for (let i = b0; i < b1; i++) {
       const v = reads[i];
-      if (v != null && v > max) g.fillRect(xS(B.start_cum[i]), T - 2, Math.max(1.5, xS(B.end_cum[i]) - xS(B.start_cum[i])), 2);
+      if (v != null && v > max) g.fillRect(xS(B.start_cum[i]), T - 2, Math.max(1.5, xS(barEnd(B.start_cum, B.end_cum, i, typical)) - xS(B.start_cum[i])), 2);
     }
     if (n) { g.strokeStyle = css("--ink3"); g.setLineDash([4, 4]); g.beginPath(); g.moveTo(PR.l, Y(sum / n)); g.lineTo(PR.l + plotW, Y(sum / n)); g.stroke(); g.setLineDash([]); }
     g.restore();
     g.fillStyle = css("--ink2"); g.textAlign = "left"; g.textBaseline = "alphabetic";
     g.fillText("Reads per bin", PR.l, 12);
     if (n) { g.fillStyle = css("--ink3"); g.textAlign = "right"; g.fillText(`dashed: mean ${fmt(sum / n, 1)}`, PR.l + plotW, 12); }
-  }, [reads, width, height, gx0, gx1, meta, B, theme]);
-  return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} /></div>;
+  }, [reads, width, height, gx0, gx1, meta, B, theme, typical]);
+  const move = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const b = binUnder(e, width, gx0, gx1, B.end_cum);
+    if (b == null) return tip(null);
+    const v = reads[b];
+    const span = B.end[b] - B.start[b];
+    const wide = barEnd(B.start_cum, B.end_cum, b, typical) < B.end_cum[b];
+    tip(e, `<span class="k">${chrLabel(B.chr[b])}:${fmtBp(B.start[b])}–${fmtBp(B.end[b])}</span>` +
+      `<br><span class="k">reads</span> <b>${v != null ? fmtInt(v) : "–"}</b>` +
+      (wide
+        ? `<br><span class="k">one bin over ${fmtBp(span)}: a centromere or other stretch with little<br>mappable sequence was merged into it. Its bar is drawn a typical<br>bin wide; the hatched rest has no reads of its own.</span>`
+        : ""));
+  };
+  return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} onMouseMove={move} onMouseLeave={() => tip(null)} /></div>;
 }
 
 /* ── the card: status, metric pills, profile and read depth ── */
