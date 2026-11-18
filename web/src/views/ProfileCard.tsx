@@ -489,14 +489,63 @@ function ReadDepthPlot({ reads, height = 120 }: { reads: Vals; height?: number }
   return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} onMouseMove={move} onMouseLeave={() => tip(null)} /></div>;
 }
 
+/* ── drag across any of the cell's panels to zoom them (and the heatmap) to that stretch ── */
+function ZoomBrush({ children }: { children: React.ReactNode }) {
+  const { meta, shown } = useDerived();
+  const zoom = useStore((s) => s.zoom);
+  const set = useStore((s) => s.set);
+  const box = useRef<HTMLDivElement>(null);
+  const width = useWidth(box);
+  const [band, setBand] = useState<[number, number] | null>(null);
+  const start = useRef<number | null>(null);
+  const genomeMax = meta.bins.end_cum[meta.n_bins - 1];
+  const [gx0, gx1] = zoom?.x ?? [0, genomeMax];
+  const plotW = width - PR.l - PR.r;
+  const px = (e: React.MouseEvent) => {
+    const x = e.clientX - box.current!.getBoundingClientRect().left;
+    return Math.max(PR.l, Math.min(PR.l + plotW, x));
+  };
+  const down = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const x = e.clientX - box.current!.getBoundingClientRect().left;
+    if (x < PR.l || x > PR.l + plotW) return;
+    start.current = x; setBand([x, x]); e.preventDefault();
+  };
+  const move = (e: React.MouseEvent) => { if (start.current != null) { setBand([start.current, px(e)]); tip(null); } };
+  const up = (e: React.MouseEvent) => {
+    if (start.current == null) return;
+    const a = Math.min(start.current, px(e)), b = Math.max(start.current, px(e));
+    start.current = null; setBand(null);
+    if (b - a < 6) return;
+    const g = (x: number) => gx0 + ((x - PR.l) / plotW) * (gx1 - gx0);
+    set({ zoom: { x: [Math.max(0, g(a)), Math.min(genomeMax, g(b))], y: zoom?.y ?? [0, shown.length] } });
+  };
+  const reset = () => { if (zoom) set({ zoom: { x: [0, genomeMax], y: zoom.y } }); };
+  return (
+    <div ref={box} className="brush" onMouseDown={down} onMouseMove={move} onMouseUp={up}
+      onMouseLeave={() => { start.current = null; setBand(null); }} onDoubleClick={reset}>
+      {children}
+      {band && <div className="brushband" style={{ left: Math.min(...band), width: Math.abs(band[1] - band[0]) }} />}
+    </div>
+  );
+}
+
 /* ── the card: status, metric pills, profile and read depth ── */
 export function ProfileCard() {
   const d = useDerived();
   const { meta, vals, metAll, passing, reasons, countLayer } = d;
   const selected = useStore((s) => s.selected);
   const view = useStore((s) => s.view);
+  const zoom = useStore((s) => s.zoom);
+  const set = useStore((s) => s.set);
   const cell = useCellDetail(selected);
   const plot = useRef<HTMLCanvasElement>(null);
+  const B = meta.bins, genomeMax = B.end_cum[meta.n_bins - 1];
+  const xZoomed = !!zoom && (zoom.x[0] > 0 || zoom.x[1] < genomeMax);
+  const zoomText = () => {
+    const a = binAt(B.end_cum, zoom!.x[0]), b = binAt(B.end_cum, zoom!.x[1]);
+    return `${chrLabel(B.chr[a])}:${fmtBp(B.start[a])} – ${chrLabel(B.chr[b])}:${fmtBp(B.end[b])}`;
+  };
   const [fig, setFig] = useState(false);
   const name = selected != null ? meta.cells[selected] : null;
   const valOf = (k: string) => (selected != null && vals[k] ? vals[k][selected] : NaN);
@@ -528,6 +577,7 @@ export function ProfileCard() {
       <div className="hd">
         <h2>{name ? <span className="mono">{name}</span> : "Cell profile"}</h2>
         <span className="sub">{status}{ct && <span className="ok"> · {String(ct)}</span>}{view === ALLELE && d.hasAS && <span className="ok"> · allele-specific</span>}</span>
+        {xZoomed && <button className="zoomchip" onClick={() => set({ zoom: { x: [0, genomeMax], y: zoom!.y } })} title="Show the whole genome">{zoomText()}  ✕</button>}
         <button className="iconbtn" onClick={() => setFig(true)} disabled={selected == null} title="Download a publication figure"><DlIcon />Figure</button>
       </div>
       {pills.length > 0 && (
@@ -540,7 +590,7 @@ export function ProfileCard() {
       <div className="bd">
         {selected == null ? <div className="empty">Click a row of the heatmap, or pick a cell on the left.</div>
           : !cell ? <div className="empty">Loading…</div>
-          : <>
+          : <ZoomBrush>
             <ProfilePlot ref={plot} cell={cell} />
             {d.exprLayer && d.totalLayer && cell.layers[d.exprLayer] && (
               <ExpressionPlot expr={cell.layers[d.exprLayer]} call={cell.layers[d.totalLayer] ?? null}
@@ -551,7 +601,8 @@ export function ProfileCard() {
                 major={cell.layers.major_cn ?? null} minor={cell.layers.minor_cn ?? null} />
             )}
             {reads && <ReadDepthPlot reads={reads} />}
-          </>}
+            <div className="brushhint">drag across the plots to zoom · double-click to see the whole genome</div>
+          </ZoomBrush>}
       </div>
     </div>
   );

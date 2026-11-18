@@ -432,3 +432,8 @@ code, pre, kbd, samp { font-family: var(--font); }
 .segctl-top span { color: var(--ink2); font-variant-numeric: tabular-nums; }
 .segctl small { display: block; color: var(--ink3); font-size: 11px; margin-top: 2px; }
 .segrow { max-width: 420px; margin-bottom: 12px; }
+
+/* ---------- cell profile: drag to zoom ---------- */
+.brush { position: relative; user-select: none; cursor: crosshair; }
+.brushband { position: absolute; top: 0; bottom: 0; pointer-events: none; background: var(--accent-soft); border-left: 1px solid var(--accent); border-right: 1px solid var(--accent); opacity: 0.7; }
+.brushhint { color: var(--ink3); font-size: 11px; text-align: right; margin-top: 6px; cursor: default; }
