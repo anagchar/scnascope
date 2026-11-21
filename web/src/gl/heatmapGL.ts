@@ -27,6 +27,8 @@ uniform highp sampler2D uRows;   // display row -> dataset row, MAP_W wide
 uniform highp sampler2D uCols;   // pixel column -> bin (-1: none)
 uniform vec2 uRowRange;          // first display row, last (exclusive), may be fractional
 uniform int uNCols;
+uniform int uWrapW;              // a matrix wider than the GPU allows: each row is wrapped
+uniform int uWrapK;              // over uWrapK texture rows of uWrapW bins
 uniform int uDiscrete;
 uniform float uLo, uHi;
 uniform int uLutN;
@@ -40,7 +42,8 @@ void main() {
   if (bin < 0.0) { o = uBg; return; }
   int drow = int(floor(uRowRange.x + vUv.y * (uRowRange.y - uRowRange.x)));
   float row = texelFetch(uRows, ivec2(drow % ${MAP_W}, drow / ${MAP_W}), 0).r;
-  float v = texelFetch(uData, ivec2(int(bin), int(row)), 0).r;
+  int b = int(bin);
+  float v = texelFetch(uData, ivec2(b % uWrapW, int(row) * uWrapK + b / uWrapW), 0).r;
   if (v < -1e29) { o = uNa; return; }   // missing (NaN is sent as -1e30)
   int k;
   if (uDiscrete == 1) k = int(clamp(floor(v + 0.5), uLo, uHi) - uLo);
@@ -71,6 +74,8 @@ export class HeatmapGL {
   private dataKey: unknown = null;
   rows = 0;
   cols = 0;
+  wrapW = 1;
+  wrapK = 1;
   readonly maxTexture: number;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -84,7 +89,7 @@ export class HeatmapGL {
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || "link");
     this.prog = p;
-    for (const n of ["uData", "uLut", "uRows", "uCols", "uRowRange", "uNCols", "uDiscrete", "uLo", "uHi", "uLutN", "uNa", "uBg"])
+    for (const n of ["uData", "uLut", "uRows", "uCols", "uRowRange", "uNCols", "uWrapW", "uWrapK", "uDiscrete", "uLo", "uHi", "uLutN", "uNa", "uBg"])
       this.u[n] = gl.getUniformLocation(p, n);
 
     const buf = gl.createBuffer();
@@ -116,11 +121,19 @@ export class HeatmapGL {
   /** Upload a row-major rows × cols matrix (NaN = missing). Skipped if `values` is unchanged. */
   setData(values: Float32Array, rows: number, cols: number) {
     if (values === this.dataKey) return;
-    if (rows > this.maxTexture || cols > this.maxTexture)
+    // wider than a texture may be (e.g. epiAneufinder's 25,000 windows of 100 kb): each row is
+    // wrapped over k texture rows, so every bin is kept
+    const k = Math.ceil(cols / this.maxTexture), w = Math.ceil(cols / k);
+    if (rows * k > this.maxTexture)
       throw new Error(`matrix ${rows}×${cols} exceeds this GPU's texture limit (${this.maxTexture})`);
-    const v = new Float32Array(values.length);
-    for (let i = 0; i < values.length; i++) v[i] = Number.isNaN(values[i]) ? NA : values[i];
-    this.upload(this.tex.data, cols, rows, v);
+    const v = new Float32Array(rows * k * w).fill(NA);
+    for (let r = 0; r < rows; r++) {
+      const src = r * cols, dst = r * k * w;
+      for (let c = 0; c < cols; c++) { const x = values[src + c]; v[dst + c] = Number.isNaN(x) ? NA : x; }
+    }
+    this.upload(this.tex.data, w, rows * k, v);
+    this.wrapW = w;
+    this.wrapK = k;
     this.rows = rows;
     this.cols = cols;
     this.dataKey = values;
@@ -165,6 +178,8 @@ export class HeatmapGL {
     bind(3, this.tex.cols, "uCols");
     gl.uniform2f(this.u.uRowRange, r0, r1);
     gl.uniform1i(this.u.uNCols, this.nCols);
+    gl.uniform1i(this.u.uWrapW, this.wrapW);
+    gl.uniform1i(this.u.uWrapK, this.wrapK);
     gl.uniform1i(this.u.uDiscrete, s.kind === "discrete" ? 1 : 0);
     gl.uniform1f(this.u.uLo, s.lo);
     gl.uniform1f(this.u.uHi, s.hi);

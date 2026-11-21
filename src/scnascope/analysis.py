@@ -75,6 +75,12 @@ def ward_manhattan(x: np.ndarray, max_cols: int | None = None) -> dict:
     return h
 
 
+#: wider matrices are averaged over blocks of neighbouring bins to this many columns before
+#: clustering: 3,000 cells on 25,000 windows (epiAneufinder's 100 kb) took six minutes, 2,000
+#: columns take seconds and keep every arm-level event
+CLUSTER_COLS = 2000
+
+
 def cluster_cells(ds: CNVDataset, max_cells: int = 20000, force: bool = False) -> CNVDataset:
     """Add the ``total`` dendrogram (default layer) and, when the dataset has major and minor
     copy number, the ``allele`` dendrogram (major and minor stacked). Existing ones are kept
@@ -86,9 +92,13 @@ def cluster_cells(ds: CNVDataset, max_cells: int = 20000, force: bool = False) -
     dendros = dict(ds.adata.uns.get("dendrograms", {}))
     if force or "total" not in dendros:
         layer = ds.default_layer
-        dendros["total"] = ward_manhattan(ds.layer(layer)) | {
+        x = ds.layer(layer)
+        method = "ward.D2, Manhattan"
+        if x.shape[1] > CLUSTER_COLS:
+            method += f" (bins averaged to {CLUSTER_COLS} columns)"
+        dendros["total"] = ward_manhattan(x, max_cols=CLUSTER_COLS) | {
             "layers": [layer],
-            "method": "ward.D2, Manhattan",
+            "method": method,
         }
     sem = ds.semantics
     if (
@@ -97,7 +107,7 @@ def cluster_cells(ds: CNVDataset, max_cells: int = 20000, force: bool = False) -
         and sem.get("minor_cn") is Semantics.ALLELE_CN
     ):
         x = np.hstack([ds.layer("major_cn"), ds.layer("minor_cn")])
-        dendros["allele"] = ward_manhattan(x) | {
+        dendros["allele"] = ward_manhattan(x, max_cols=2 * CLUSTER_COLS) | {
             "layers": ["major_cn", "minor_cn"],
             "method": "ward.D2, Manhattan",
         }
