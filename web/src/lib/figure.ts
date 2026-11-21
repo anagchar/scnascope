@@ -248,6 +248,8 @@ export interface ProfileFigure extends CommonOpts {
   stateScale: Scale;
   /** colour bins by their state */
   colorBins: boolean;
+  /** gain / normal / loss calls (epiAneufinder), drawn on their own three-level axis */
+  ternary?: { calls: (number | null)[]; scale: Scale } | null;
 }
 
 type V = (number | null)[];
@@ -278,18 +280,23 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
   const [b0, b1] = binRange(B.start_cum, B.end_cum, gx0, gx1);
   const xs = (gx: number) => left + ((gx - gx0) / (gx1 - gx0)) * (right - left);
   const mx = (v: V | null | undefined) => { let m = 0; if (v) for (let i = b0; i < b1; i++) { const x = v[i]; if (x != null && x > m) m = x; } return m; };
+  const tern = o.ternary ?? null;
   const ymax = Math.max(5, Math.min(12, (o.allele ? mx(o.allele.major) : mx(o.calls)) + 1));
-  const Y = (v: number) => top + plotH - (Math.max(-0.3, Math.min(ymax + 0.4, v)) / (ymax + 0.4)) * plotH;
+  const Y = tern
+    ? (v: number) => top + plotH - ((Math.max(-1.5, Math.min(1.5, v)) + 1.5) / 3) * plotH
+    : (v: number) => top + plotH - (Math.max(-0.3, Math.min(ymax + 0.4, v)) / (ymax + 0.4)) * plotH;
 
   // grid, axis
   g.font = `${fs * 0.85}px ${FIG_FONT}`; g.textAlign = "right"; g.textBaseline = "middle"; g.lineWidth = 0.4;
-  for (let y = 0; y <= ymax; y++) {
-    g.strokeStyle = y === 2 ? T.ink3 : T.grid; g.setLineDash(y === 2 ? [] : [1.5, 1.5]);
+  const ticks: [number, string][] = tern ? [[-1, "Loss"], [0, "Normal"], [1, "Gain"]] : Array.from({ length: ymax + 1 }, (_, y) => [y, String(y)]);
+  const base = tern ? 0 : 2;
+  for (const [y, label] of ticks) {
+    g.strokeStyle = y === base ? T.ink3 : T.grid; g.setLineDash(y === base ? [] : [1.5, 1.5]);
     g.beginPath(); g.moveTo(left, Y(y)); g.lineTo(right, Y(y)); g.stroke();
-    g.fillStyle = T.ink2; g.fillText(String(y), left - fs * 0.4, Y(y));
+    g.fillStyle = T.ink2; g.fillText(label, left - fs * 0.4, Y(y));
   }
   g.setLineDash([]);
-  g.save(); g.translate(pad + fs * 0.5, top + plotH / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.fillStyle = T.ink2; g.fillText("Copy number", 0, 0); g.restore();
+  if (!tern) { g.save(); g.translate(pad + fs * 0.5, top + plotH / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.fillStyle = T.ink2; g.fillText("Copy number", 0, 0); g.restore(); }
   const spans: [string, number, number][] = [];
   g.strokeStyle = T.frame; g.lineWidth = 0.4;
   for (const c of meta.chr_info) {
@@ -335,6 +342,15 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
     }
     seg(A.major, T.major, fs * 0.22, 0.07);
     seg(A.minor, T.minor, fs * 0.22, -0.07);
+  } else if (tern) {
+    // each run of windows with the same call, in the call's colour
+    // round ends, so a call on a single bin still shows as a dot, as in the app's profile
+    g.lineWidth = fs * 0.32; g.lineCap = "round";
+    for (const [s, e, x] of runs(B.chr, tern.calls)) {
+      if (e <= b0 || s >= b1) continue;
+      g.strokeStyle = discreteColor(tern.scale, x) || T.call;
+      g.beginPath(); g.moveTo(xs(B.start_cum[s]), Y(x)); g.lineTo(Math.max(xs(B.end_cum[e - 1]), xs(B.start_cum[s]) + 0.6), Y(x)); g.stroke();
+    }
   } else if (o.calls) seg(o.calls, T.call, fs * 0.2);
   g.restore();
 
@@ -423,6 +439,9 @@ export function drawProfileFigure(g: CanvasRenderingContext2D, o: ProfileFigure)
         item(() => { g.fillStyle = T.bars; g.globalAlpha = 0.6; [0.14, 0.2, 0.26].forEach((r, i) => { g.beginPath(); g.arc(x + fs * 0.2 + i * fs * 0.4, ly, fs * r, 0, 7); g.fill(); }); g.globalAlpha = 1; }, o.baf.n ? "BAF per bin (size: reads)" : "BAF per bin");
         if (o.baf.major) item(() => { g.strokeStyle = T.ink; g.lineWidth = fs * 0.12; g.setLineDash([fs * 0.15, fs * 0.25]); g.beginPath(); g.moveTo(x, ly); g.lineTo(x + fs * 1.2, ly); g.stroke(); g.setLineDash([]); }, "expected BAF");
       }
+    } else if (tern) {
+      for (const [v, label] of [[1, "gain"], [-1, "loss"]] as const)
+        item(() => { g.fillStyle = discreteColor(tern.scale, v) || T.call; g.fillRect(x, ly - fs * 0.13, fs * 1.2, fs * 0.26); }, label);
     } else if (o.calls) item(() => { g.fillStyle = T.call; g.fillRect(x, ly - fs * 0.1, fs * 1.2, fs * 0.2); }, "copy-number call");
   }
 }

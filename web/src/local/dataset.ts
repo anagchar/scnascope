@@ -15,6 +15,7 @@ export interface Parts {
   name: string;
   tool: string;
   modality: Meta["modality"];
+  logr_reference?: string | null;
   genome: string | null;
   cells: string[];
   /** cell columns, each one value per cell */
@@ -70,6 +71,7 @@ export function assemble(p: Parts): LocalData {
     name: p.name,
     tool: p.tool,
     modality: p.modality,
+    logr_reference: p.logr_reference ?? null,
     genome: p.genome,
     n_cells: p.cells.length,
     n_bins: chr.length,

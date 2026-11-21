@@ -40,6 +40,8 @@ export interface Meta {
   name: string;
   tool: string;
   modality: "scDNA" | "scATAC" | "scRNA" | "multiome";
+  /** scATAC: the cells each bin's logR is compared with (e.g. its own cell type) */
+  logr_reference?: string | null;
   genome: string | null;
   n_cells: number;
   n_bins: number;

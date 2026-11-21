@@ -31,6 +31,11 @@ group("filters", () => {
     // a default at the data's maximum flags nothing, so it is left out
     expect(defaultFilters({ bins_with_cna: Float64Array.from([1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3]) })).toEqual({});
   });
+  it("leaves out the Gini default for epiAneufinder (ATAC fragments follow open chromatin)", () => {
+    const gini = Float64Array.from([0.5, 0.6, 0.62, 0.64, 0.66, 0.7, 0.72, 0.74, 0.76, 0.8, 0.9]);
+    expect(defaultFilters({ gini }, "ASCAT.sc").gini).toBeDefined();
+    expect(defaultFilters({ gini }, "epiAneufinder")).toEqual({});
+  });
   it("describes and exports", () => {
     expect(describe("ploidy", { min: 1.5, max: 3 })).toBe("1.50 – 3.00");
     expect(describe("mapd", { min: null, max: 0.29 })).toBe("≤ 0.290");

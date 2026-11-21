@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { drawHeatmapFigure, drawProfileFigure, figTheme, regionLabel, type CommonOpts } from "../lib/figure";
 import { useCytobands } from "../lib/genome";
 import { CATEGORICAL, PALETTES } from "../lib/palettes";
-import { alleleScale, scaleFor } from "../lib/scales";
+import { alleleScale, isCall, scaleFor } from "../lib/scales";
 import { useDerived } from "../state/derived";
 import { ALLELE, useStore } from "../state/store";
 import { useCellDetail } from "./ProfileCard";
@@ -82,6 +82,10 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
     return scaleFor(s, { palette, dark, countMax: s === "count" ? heat.scale.hi : undefined });
   }, [isAllele, palette, dark, sem, st.view, heat.scale.hi]);
   const stateScale = useMemo(() => scaleFor("integer_cn", { palette, dark }), [palette, dark]);
+  // gain / normal / loss calls (epiAneufinder): the profile's call layer when it is ternary
+  const callLayer = totalLayer ?? (isCall(sem[st.view] ?? "count") ? st.view : null);
+  const ternLayer = callLayer && sem[callLayer] === "ternary_state" ? callLayer : null;
+  const ternScale = useMemo(() => scaleFor("ternary_state", { palette, dark }), [palette, dark]);
   const annotColors = useMemo(() => {
     const m = new Map<string, string>();
     if (!annotation) return m;
@@ -134,7 +138,8 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
         pxPerPt,
       });
     } else if (kind === "profile" && profileData && cell) {
-      drawProfileFigure(g, { ...common, meta, cell, gx, ...profileData, reads: reads ? profileData.reads : null, baf: bafOn ? profileData.baf : null, stateScale, colorBins });
+      const ternary = ternLayer && cell.layers[ternLayer] ? { calls: cell.layers[ternLayer], scale: ternScale } : null;
+      drawProfileFigure(g, { ...common, meta, cell, gx, ...profileData, reads: reads ? profileData.reads : null, baf: bafOn ? profileData.baf : null, stateScale, colorBins, ternary });
     }
   };
 
@@ -232,7 +237,7 @@ export function FigureDialog({ kind, onClose }: { kind: FigureKind; onClose: () 
             </> : <>
               {bafLayer && <Row label="BAF" hint="per-bin BAF with the expected BAF"><Switch on={bafOn} onChange={(v) => { setBafOn(v); setHeightMm((h) => Math.max(30, Math.min(400, h + (v ? 25 : -25)))); }} label="BAF" /></Row>}
               {countLayer && <Row label="Read depth"><Switch on={reads} onChange={setReads} label="Read depth" /></Row>}
-              <Row label="Colour bins by state"><Switch on={colorBins} onChange={setColorBins} label="Colour bins by state" /></Row>
+              {binsLayer && <Row label="Colour bins by state"><Switch on={colorBins} onChange={setColorBins} label="Colour bins by state" /></Row>}
               {isAllele && d.hasCi && <Row label="BAF intervals"><Switch on={ci} onChange={setCi} label="BAF intervals" /></Row>}
             </>}
             <Row label="Format"><Seg value={format} options={[["png", "PNG"], ["pdf", "PDF"]]} onChange={setFormat} /></Row>

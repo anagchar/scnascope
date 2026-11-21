@@ -30,6 +30,11 @@ export function metricRanges(vals: Record<string, ArrayLike<number>>): Record<st
  * many altered bins is their signal, not noise, so "Bins with CNA" gets no default filter.
  */
 const CALIBRATED_CALLS = new Set(["scphasedcn"]);
+/**
+ * scATAC fragments follow open chromatin, so their spread over bins is uneven by nature: a high
+ * Gini is not the amplification bias it marks in scDNA, and gets no default filter.
+ */
+const NO_GINI_DEFAULT = new Set(["epianeufinder"]);
 
 export function defaultFilters(vals: Record<string, ArrayLike<number>>, tool = ""): Filters {
   const ranges = metricRanges(vals);
@@ -37,6 +42,7 @@ export function defaultFilters(vals: Record<string, ArrayLike<number>>, tool = "
   for (const t of THRESH) {
     if (!ranges[t.metric]) continue;
     if (t.metric === "bins_with_cna" && CALIBRATED_CALLS.has(tool)) continue;
+    if (t.metric === "gini" && NO_GINI_DEFAULT.has(tool.toLowerCase())) continue;
     const v = Array.from(vals[t.metric]).filter(Number.isFinite).sort((a, b) => a - b);
     const x = t.initial(v);
     // skip a default that cannot flag any cell (at or beyond the data's own end)

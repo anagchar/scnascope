@@ -146,8 +146,10 @@ def fingerprint(path: Path, depth: int = 2) -> str:
     return h.hexdigest()
 
 
-def cached_result(outdir: Path, name: str, tool: str, src: Path, fp: str) -> Path | None:
-    """The .h5ad of an earlier run on the same, unchanged input, if there is one."""
+def cached_result(
+    outdir: Path, name: str, tool: str, src: Path, fp: str, bin_size: int | None = None
+) -> Path | None:
+    """The .h5ad of an earlier run on the same, unchanged input (and bin size), if any."""
     run, h5 = outdir / f"{name}_run.json", outdir / f"{name}.h5ad"
     if not (run.exists() and h5.exists()):
         return None
@@ -155,7 +157,11 @@ def cached_result(outdir: Path, name: str, tool: str, src: Path, fp: str) -> Pat
         meta = json.loads(run.read_text())
     except (OSError, ValueError):
         return None
-    same = meta.get("tool") == tool and meta.get("read_from") == str(src.resolve())
+    same = (
+        meta.get("tool") == tool
+        and meta.get("read_from") == str(src.resolve())
+        and meta.get("bin_size") == bin_size
+    )
     return h5 if same and meta.get("fingerprint") == fp else None
 
 
@@ -193,6 +199,17 @@ def add_annotations(ds, path: Path) -> None:
     except Exception as e:  # noqa: BLE001
         raise click.ClickException(f"could not add annotations from {path}: {e}") from e
     click.echo(f"scnascope: annotations for {n:,} of {ds.adata.n_obs:,} cells from {path.name}")
+
+
+def add_atac_logr(ds, tool) -> None:
+    """epiAneufinder with fragment counts: logR per bin (and its MAPD) against cells of the
+    same type: run after the annotations, which bring the cell types."""
+    if tool.name != "epianeufinder" or "read_counts" not in ds.adata.layers:
+        return
+    from .readers.epianeufinder import add_logr
+
+    ref = add_logr(ds)
+    click.echo(f"scnascope: logR per bin against {ref}")
 
 
 def free_port(host: str, port: int, tries: int = 50) -> int:
@@ -278,6 +295,11 @@ def with_tool_flags(f):
     help="Cell annotations (.csv/.tsv): a barcode column (cell/barcode, or the first) and any "
     "others, e.g. cell type; shown as tracks beside the heatmap.",
 )
+@click.option(
+    "--bin-size",
+    help="epiAneufinder: merge its windows into bins of this size, e.g. 1Mb or 500kb (fragment "
+    "counts summed, the majority call per bin). Default: epiAneufinder's own windows.",
+)
 @click.option("--name", help="Name of the dataset and its files (default: the input's name).")
 @click.option("--no-view", is_flag=True, help="Only write the outputs; do not start the viewer.")
 @click.option(
@@ -298,6 +320,7 @@ def main(
     input_file,
     outdir,
     annotations,
+    bin_size,
     name,
     no_view,
     force,
@@ -363,8 +386,22 @@ def main(
             f"{tool.label} is not supported yet (planned). Supported now: {ready}."
         )
 
+    size = None
+    if bin_size:
+        from .readers.epianeufinder import parse_bin_size
+
+        if tool.name != "epianeufinder":
+            raise click.UsageError("--bin-size is for epiAneufinder runs only.")
+        try:
+            size = parse_bin_size(bin_size)
+        except ValueError:
+            raise click.UsageError(
+                f"--bin-size {bin_size!r}: use e.g. 1Mb, 500kb or 1000000"
+            ) from None
     src = file if input_file else find_input(tool, input_path)
-    opts = {}
+    opts = {"bin_size": size} if size else {}
+    if src.suffix == ".h5ad" and size:
+        raise click.UsageError("--bin-size needs the epiAneufinder output folder, not an .h5ad.")
     if src.suffix == ".h5ad":  # a viewer file written earlier (export_scnascope or convert)
         from .model import CNVDataset
 
@@ -384,7 +421,7 @@ def main(
         )
     name = name or (named_by or src).resolve().name.split(".")[0].removesuffix("_call_scn")
     fp = fingerprint(src)
-    cached = None if force else cached_result(outdir, name, tool.name, src, fp)
+    cached = None if force else cached_result(outdir, name, tool.name, src, fp, size)
     if cached is not None:
         # same input, unchanged since the last run: reopen its result (seconds, not minutes)
         click.echo(f"scnascope: {src.name} is unchanged since the last run; reopening {cached}")
@@ -394,6 +431,7 @@ def main(
         ds = prepare(CNVDataset.read(cached))
         if annotations:
             add_annotations(ds, annotations)
+            add_atac_logr(ds, tool)  # the reference cell types may have changed
             ds.write(cached)  # keep the outputs in step with the annotations
             ds.adata.obs.to_csv(outdir / f"{name}_cells.tsv", sep="\t", index_label="cell")
         click.echo(f"scnascope: {ds.adata.n_obs:,} cells × {ds.adata.n_vars:,} bins")
@@ -407,6 +445,7 @@ def main(
         raise click.ClickException(f"could not read {src}: {e}") from e
     if annotations:
         add_annotations(ds, annotations)
+    add_atac_logr(ds, tool)
     meta = {
         "scnascope": __version__,
         "mode": mode,
@@ -415,6 +454,7 @@ def main(
         "read_from": str(src.resolve()),
         "fingerprint": fp,
         "annotations": str(annotations.resolve()) if annotations else None,
+        "bin_size": size,
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "command": " ".join(sys.argv),
     }

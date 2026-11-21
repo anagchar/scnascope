@@ -93,6 +93,7 @@ export async function readH5ad(bytes: Uint8Array, name: string): Promise<LocalDa
       name: name || str("source") || str("tool") || "dataset",
       tool: str("tool") ?? "",
       modality: (str("modality") ?? "scDNA") as Meta["modality"],
+      logr_reference: str("logr_reference"),
       genome: str("genome"),
       cells: obs.index,
       obs: obs.cols,

@@ -340,8 +340,19 @@ function binUnder(e: React.MouseEvent<HTMLCanvasElement>, width: number, gx0: nu
 }
 
 /* ── expression (scRNA / multiome): relative expression per bin, on its own axis ── */
+/** The gain / normal / loss layer of a cell, if the dataset has one. */
+function ternaryOf(L: Record<string, Vals>, sem: Record<string, string>): Vals | null {
+  const k = Object.keys(sem).find((n) => sem[n] === "ternary_state" && L[n]);
+  return k ? L[k] : null;
+}
+
+/** "its own cell_type (16 with >= 20 cells; the others: all cells)" -> "its own cell_type" */
+const refShort = (r: string) => r.replace(/\s*\(.*\)$/, "");
+
 function ExpressionPlot({ expr, call, callName, height = 170 }: { expr: Vals; call: Vals | null; callName: string; height?: number }) {
   const { meta } = useDerived();
+  // scATAC: logR of fragment counts against the same bin in reference cells (epiAneufinder)
+  const atac = meta.modality === "scATAC";
   const zoom = useStore((s) => s.zoom);
   const theme = useStore((s) => s.theme);
   const box = useRef<HTMLDivElement>(null);
@@ -366,20 +377,26 @@ function ExpressionPlot({ expr, call, callName, height = 170 }: { expr: Vals; ca
     const xS = (v: number) => PR.l + ((v - gx0) / (gx1 - gx0)) * plotW;
     const Y = (v: number) => T + plotH / 2 - (Math.max(-range, Math.min(range, v)) / range) * (plotH / 2);
     const [b0, b1] = binRange(B.start_cum, B.end_cum, gx0, gx1);
-    // ticks in relative expression (×), placed on the log2 axis
-    const step = range > 0.4 ? 0.25 : range > 0.15 ? 0.1 : 0.05;
+    // ticks in relative expression (×), placed on the log2 axis; scATAC: logR itself
     g.font = `11px ${FONT}`; g.lineWidth = 1; g.fillStyle = css("--ink3"); g.textAlign = "right"; g.textBaseline = "middle";
-    const ticks = [1];
-    for (let k = 1; k < 20; k++) {
-      const up = 1 + k * step, dn = 1 - k * step;
-      if (Math.log2(up) <= range) ticks.push(up);
-      if (dn > 0 && -Math.log2(dn) <= range) ticks.push(dn);
+    const ticks: [number, string][] = [];
+    if (atac) {
+      const st = range > 2.5 ? 1 : 0.5;
+      for (let v = -Math.floor(range / st) * st; v <= range + 1e-9; v += st) ticks.push([v, v === 0 ? "0" : (v > 0 ? "+" : "") + v]);
+    } else {
+      const step = range > 0.4 ? 0.25 : range > 0.15 ? 0.1 : 0.05;
+      ticks.push([0, "1×"]);
+      for (let k = 1; k < 20; k++) {
+        const up = 1 + k * step, dn = 1 - k * step;
+        if (Math.log2(up) <= range) ticks.push([Math.log2(up), `${Math.round(up * 100) / 100}×`]);
+        if (dn > 0 && -Math.log2(dn) <= range) ticks.push([Math.log2(dn), `${Math.round(dn * 100) / 100}×`]);
+      }
     }
-    for (const t of ticks) {
-      const y = Y(Math.log2(t));
-      g.strokeStyle = css(t === 1 ? "--ink3" : "--grid"); g.setLineDash(t === 1 ? [5, 4] : []);
+    for (const [v, label] of ticks) {
+      const y = Y(v);
+      g.strokeStyle = css(v === 0 ? "--ink3" : "--grid"); g.setLineDash(v === 0 ? [5, 4] : []);
       g.beginPath(); g.moveTo(PR.l, y); g.lineTo(PR.l + plotW, y); g.stroke();
-      g.fillText(`${Math.round(t * 100) / 100}×`, PR.l - 6, y);
+      g.fillText(label, PR.l - 6, y);
     }
     g.setLineDash([]);
     drawChromosomes(g, meta, xS, gx0, gx1, T, plotH, null);
@@ -394,19 +411,34 @@ function ExpressionPlot({ expr, call, callName, height = 170 }: { expr: Vals; ca
       g.beginPath(); g.arc(xS((B.start_cum[i] + B.end_cum[i]) / 2), Y(v), 1.8, 0, 7); g.fill();
     }
     g.globalAlpha = 1;
+    if (atac && call) {
+      // single bins are noisy: the mean logR over each run of one call
+      g.strokeStyle = css("--mean"); g.lineWidth = 1.4; g.beginPath();
+      for (const [s, e] of runsOf(B.chr, call)) {
+        if (e <= b0 || s >= b1) continue;
+        let m = 0, k = 0;
+        for (let i = s; i < e; i++) { const v = expr[i]; if (v != null && Number.isFinite(v)) { m += v; k++; } }
+        if (!k) continue;
+        m /= k;
+        g.moveTo(xS(B.start_cum[s]), Y(m)); g.lineTo(xS(B.end_cum[e - 1]), Y(m));
+      }
+      g.stroke();
+    }
     g.restore();
     g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = css("--ink2");
-    g.fillText("Expression per bin (relative to the reference cells)", PR.l, 12);
+    g.fillText(atac ? `logR per bin (fragments, against the same bin in ${meta.logr_reference ? refShort(meta.logr_reference) : "all cells"})` : "Expression per bin (relative to the reference cells)", PR.l, 12);
     g.textAlign = "right"; g.fillStyle = css("--ink3");
-    g.fillText("not on the copy-number scale: expression is compressed and smoothed", PR.l + plotW, 12);
-  }, [expr, range, width, height, gx0, gx1, meta, B, theme]);
+    g.fillText(atac ? "line: mean over each gain / normal / loss stretch" : "not on the copy-number scale: expression is compressed and smoothed", PR.l + plotW, 12);
+  }, [expr, call, atac, range, width, height, gx0, gx1, meta, B, theme]);
   const move = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const b = binUnder(e, width, gx0, gx1, B.end_cum);
     if (b == null) return tip(null);
     const v = expr[b];
     tip(e, `<span class="k">${chrLabel(B.chr[b])}:${fmtBp(B.start[b])}–${fmtBp(B.end[b])}</span>` +
-      `<br><span class="k">expression</span> <b>${v != null && Number.isFinite(v) ? fmt(2 ** v, 3) + "×" : "–"}</b>` +
-      (call && call[b] != null ? `<br><span class="k">${esc(callName)}</span> ${call[b]}` : ""));
+      (atac
+        ? `<br><span class="k">logR</span> <b>${v != null && Number.isFinite(v) ? fmt(v, 2) : "–"}</b>`
+        : `<br><span class="k">expression</span> <b>${v != null && Number.isFinite(v) ? fmt(2 ** v, 3) + "×" : "–"}</b>`) +
+      (call && call[b] != null ? `<br><span class="k">${esc(callName)}</span> ${atac ? (["loss", "normal", "gain"][call[b]! + 1] ?? call[b]) : call[b]}` : ""));
   };
   return <div ref={box} style={{ width: "100%", marginTop: 10 }}><canvas ref={cv} onMouseMove={move} onMouseLeave={() => tip(null)} /></div>;
 }
@@ -595,6 +627,9 @@ export function ProfileCard() {
             {d.exprLayer && d.totalLayer && cell.layers[d.exprLayer] && (
               <ExpressionPlot expr={cell.layers[d.exprLayer]} call={cell.layers[d.totalLayer] ?? null}
                 callName={d.totalLayer === "total_cn" ? "copy number call" : d.totalLayer} />
+            )}
+            {d.exprLayer && !d.totalLayer && meta.modality === "scATAC" && cell.layers[d.exprLayer] && (
+              <ExpressionPlot expr={cell.layers[d.exprLayer]} call={ternaryOf(cell.layers, d.sem)} callName="call" />
             )}
             {view === ALLELE && d.bafLayer && cell.layers[d.bafLayer] && (
               <BafPlot baf={cell.layers[d.bafLayer]} n={d.bafNLayer ? cell.layers[d.bafNLayer] ?? null : null}

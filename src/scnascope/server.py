@@ -62,6 +62,7 @@ def build_meta(ds: CNVDataset, name: str = "") -> dict:
         "name": name or str(a.uns.get("source", ds.tool)),
         "tool": ds.tool,
         "modality": ds.modality.value,
+        "logr_reference": a.uns.get("logr_reference"),
         "genome": a.uns.get("genome"),
         "n_cells": int(a.n_obs),
         "n_bins": int(a.n_vars),
