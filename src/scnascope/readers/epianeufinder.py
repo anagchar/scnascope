@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ..analysis import ward_d_manhattan
 from ..model import CNVDataset, Modality, Semantics, chr_sort_key
 from . import Reader, register
 
@@ -194,8 +195,16 @@ def read_epianeufinder(
         counts = _counts(t.parent / COUNTS, cols, len(bins), rscript)
         if counts is not None:
             counts = counts[:, order]
+    # cells clustered with ward.D, as epiAneufinder's Karyogram, but on Manhattan distances
+    # (as the scDNA tools here), on all of its windows (before any --bin-size merge)
+    dendros = {}
+    if 3 <= len(cells) <= 20000:
+        dendros["total"] = ward_d_manhattan(state) | {
+            "layers": ["state"],
+            "method": "ward.D, Manhattan on epiAneufinder's calls (all its windows)",
+        }
     size = parse_bin_size(bin_size)
-    extra = {}
+    extra = {"dendrograms": dendros} if dendros else {}
     if size:
         window = int(np.median(bins["end"] - bins["start"] + 1))
         if size < 2 * window:
@@ -204,7 +213,7 @@ def read_epianeufinder(
                 f"({window:,} bp); use at least {2 * window:,}"
             )
         bins, state, counts = merge_windows(bins, state, counts, size)
-        extra = {"bin_size": size, "window_size": window}
+        extra |= {"bin_size": size, "window_size": window}
     layers = {"state": state.astype(np.float32)}
     sem = {"state": Semantics.TERNARY_STATE}
     if counts is not None:

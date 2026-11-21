@@ -201,6 +201,26 @@ def add_annotations(ds, path: Path) -> None:
     click.echo(f"scnascope: annotations for {n:,} of {ds.adata.n_obs:,} cells from {path.name}")
 
 
+GENOMES = {"hg38": "hg38", "hg19": "hg19", "mm10": "mm10", "mm39": "mm39", "hs1": "hs1"}
+GENOME_ALIASES = {
+    "t2t": "hs1",
+    "chm13": "hs1",
+    "t2t-chm13": "hs1",
+    "chm13v2": "hs1",
+    "grch38": "hg38",
+}
+
+
+def norm_genome(name: str) -> str:
+    g = name.strip().lower()
+    g = GENOME_ALIASES.get(g, g)
+    if g not in GENOMES:
+        raise click.UsageError(
+            f"--genome {name!r}: use hg38, hg19, mm10, mm39 or hs1 (T2T-CHM13; also t2t, chm13)"
+        )
+    return g
+
+
 def add_atac_logr(ds, tool) -> None:
     """epiAneufinder with fragment counts: logR per bin (and its MAPD) against cells of the
     same type: run after the annotations, which bring the cell types."""
@@ -296,6 +316,11 @@ def with_tool_flags(f):
     "others, e.g. cell type; shown as tracks beside the heatmap.",
 )
 @click.option(
+    "--genome",
+    help="Reference genome of the run: hg38 (default), hg19, mm10, mm39, or hs1 (T2T-CHM13; "
+    "also t2t, chm13). Sets the chromosome bands drawn above the heatmap.",
+)
+@click.option(
     "--bin-size",
     help="epiAneufinder: merge its windows into bins of this size, e.g. 1Mb or 500kb (fragment "
     "counts summed, the majority call per bin). Default: epiAneufinder's own windows.",
@@ -320,6 +345,7 @@ def main(
     input_file,
     outdir,
     annotations,
+    genome,
     bin_size,
     name,
     no_view,
@@ -386,6 +412,7 @@ def main(
             f"{tool.label} is not supported yet (planned). Supported now: {ready}."
         )
 
+    genome = norm_genome(genome) if genome else None
     size = None
     if bin_size:
         from .readers.epianeufinder import parse_bin_size
@@ -414,6 +441,8 @@ def main(
             opts["use_viewer_file"] = not force  # --force: read the R object itself
         if reader is not None and reader.name == "numbat":
             opts["modality"] = MODES[mode]
+        if reader is not None and reader.name == "infercnv" and genome:
+            opts["genome"] = genome  # its windows follow the genome's chromosome lengths
     if reader is None:
         raise click.UsageError(
             f"{src} does not look like {tool.label} output. "
@@ -429,6 +458,9 @@ def main(
         from .model import CNVDataset
 
         ds = prepare(CNVDataset.read(cached))
+        if genome and ds.adata.uns.get("genome") != genome:
+            ds.adata.uns["genome"] = genome
+            ds.write(cached)
         if annotations:
             add_annotations(ds, annotations)
             add_atac_logr(ds, tool)  # the reference cell types may have changed
@@ -443,6 +475,8 @@ def main(
         ds = prepare(reader.read(src, **opts))
     except Exception as e:  # noqa: BLE001 - report reader failures plainly
         raise click.ClickException(f"could not read {src}: {e}") from e
+    if genome:
+        ds.adata.uns["genome"] = genome
     if annotations:
         add_annotations(ds, annotations)
     add_atac_logr(ds, tool)

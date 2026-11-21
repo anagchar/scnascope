@@ -90,7 +90,8 @@ export const STAIN_COLORS: Record<string, string> = {
 const cache = new Map<string, Band[]>();
 
 export function useCytobands(genome: string | null): Band[] | null {
-  const g = genome && /^(hg38|hg19|mm10|mm39)$/.test(genome) ? genome : null;
+  // hs1 is T2T-CHM13 (UCSC's name for it)
+  const g = genome && /^(hg38|hg19|mm10|mm39|hs1)$/.test(genome) ? genome : null;
   const [bands, setBands] = useState<Band[] | null>(g ? cache.get(g) ?? null : null);
   useEffect(() => {
     if (!g) return;

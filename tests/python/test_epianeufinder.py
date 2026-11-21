@@ -231,3 +231,54 @@ def test_logr_against_the_cells_own_type():
     # against all cells instead, type A's open bin looks like a gain
     add_logr(ds, by="none")
     assert ds.layer("logr")[0, 2] > 0.5
+
+
+def test_manhattan_of_calls_by_matrix_products():
+    from scipy.spatial.distance import pdist, squareform
+
+    from scnascope.analysis import _manhattan_levels
+
+    rng = np.random.default_rng(1)
+    x = rng.choice([-1, 0, 1], size=(40, 300), p=[0.1, 0.8, 0.1]).astype(np.float32)
+    np.testing.assert_allclose(_manhattan_levels(x), squareform(pdist(x, "cityblock")))
+
+
+@pytest.mark.skipif(not shutil.which("Rscript"), reason="needs R")
+def test_ward_d_manhattan_matches_r(tmp_path):
+    """hclust(dist(x, "manhattan"), "ward.D") in R: the same merge heights. Continuous values,
+    so no tied distances (R and scipy may break ties between equal distances differently)."""
+    from scnascope.analysis import ward_d_manhattan
+
+    rng = np.random.default_rng(2)
+    x = rng.normal(size=(40, 30))
+    x[:15, :10] -= 2  # a group
+    f = tmp_path / "x.csv"
+    np.savetxt(f, x, delimiter=",", fmt="%.10f")
+    out = subprocess.run(
+        [
+            "Rscript",
+            "-e",
+            f"x <- as.matrix(read.csv('{f}', header = FALSE)); "
+            "h <- hclust(dist(x, 'manhattan'), 'ward.D'); cat(h$height, sep = ',')",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    r_heights = np.array(out.split(","), dtype=float)
+    np.testing.assert_allclose(ward_d_manhattan(x)["height"], r_heights, rtol=1e-6)
+
+
+def test_genome_option(tmp_path):
+    root = write_epi(tmp_path / "epi_out")
+    out = tmp_path / "o"
+    base = ["--mode", "atac", "--epianeufinder", "-i", str(root), "-o", str(out), "--no-view"]
+    assert CliRunner().invoke(main, [*base, "--genome", "T2T"]).exit_code == 0
+    a = ad.read_h5ad(out / "epi_out.h5ad")
+    assert a.uns["genome"] == "hs1"
+    assert a.uns["dendrograms"]["total"]["method"].startswith("ward.D, Manhattan")
+    # the saved result is reopened, with the genome changed in place
+    r = CliRunner().invoke(main, [*base, "--genome", "hg38"])
+    assert "unchanged" in r.output and ad.read_h5ad(out / "epi_out.h5ad").uns["genome"] == "hg38"
+    r = CliRunner().invoke(main, [*base, "--genome", "hg99"])
+    assert r.exit_code != 0 and "use hg38" in r.output

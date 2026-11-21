@@ -11,7 +11,7 @@ export function DatasetTab() {
   ];
   if (reads?.length) tiles.push(["Reads", fmtCount(reads.reduce((a, v) => a + v, 0)), `median ${fmtCount(quantile([...reads].sort((a, b) => a - b), 0.5))} per cell`]);
   tiles.push(["Bins", nb.toLocaleString(), binSizeMb ? fmtBp(binSizeMb * 1e6) + " each" : ""]);
-  tiles.push(["Chromosomes", meta.chr_info.length, fmtBp(meta.bins.end_cum[nb - 1]) + " in bins" + (meta.genome ? ` · ${meta.genome}` : "")]);
+  tiles.push(["Chromosomes", meta.chr_info.length, fmtBp(meta.bins.end_cum[nb - 1]) + " in bins" + (meta.genome ? ` · ${meta.genome === "hs1" ? "T2T-CHM13 (hs1)" : meta.genome}` : "")]);
   tiles.push(["Allele-specific", hasAS ? "yes" : "no", hasAS ? (hasCi ? "with BAF intervals" : "major and minor copies") : "total copy number only"]);
   tiles.push(["Clustering", dendro ? "Ward.D2" : "–", dendro ? "Manhattan distance of profiles" : "no dendrogram"]);
   return (

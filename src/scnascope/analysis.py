@@ -81,6 +81,39 @@ def ward_manhattan(x: np.ndarray, max_cols: int | None = None) -> dict:
 CLUSTER_COLS = 2000
 
 
+def _manhattan_levels(x: np.ndarray) -> np.ndarray:
+    """Manhattan distances between the rows of an integer-valued matrix (NaN → 0), by matrix
+    products: |a - b| is the number of thresholds between consecutive levels that a and b fall
+    on different sides of, and each threshold's disagreements are a Hamming distance."""
+    x = np.nan_to_num(np.asarray(x, dtype=np.float64))
+    levels = np.unique(x)
+    d = np.zeros((len(x), len(x)))
+    for lo, hi in zip(levels[:-1], levels[1:], strict=True):
+        b = (x > lo).astype(np.float64)
+        n = b.sum(axis=1)
+        d += (hi - lo) * (n[:, None] + n[None, :] - 2.0 * (b @ b.T))
+    np.maximum(d, 0, out=d)
+    np.fill_diagonal(d, 0)
+    return d
+
+
+def ward_d_manhattan(x: np.ndarray) -> dict:
+    """R's ``hclust(dist(x, "manhattan"), method = "ward.D")`` on the rows of ``x`` (NaN → 0),
+    on every column. ward.D updates the distances themselves, which is scipy's ward
+    (Lance-Williams on squared distances) given their square roots; the heights are squared
+    back. A matrix with few integer levels (calls) uses exact matrix products, else pdist."""
+    x = np.nan_to_num(np.asarray(x, dtype=np.float64))
+    if len(np.unique(x)) <= 8 and np.allclose(x, np.round(x)):
+        d = _manhattan_levels(x)[np.triu_indices(len(x), k=1)]
+    else:
+        d = pdist(x, metric="cityblock")
+    Z = linkage(np.sqrt(d), method="ward")
+    Z[:, 2] = Z[:, 2] ** 2
+    h = scipy_to_hclust(Z)
+    h["order"] = leaves_list(Z).astype(np.int64)
+    return h
+
+
 def cluster_cells(ds: CNVDataset, max_cells: int = 20000, force: bool = False) -> CNVDataset:
     """Add the ``total`` dendrogram (default layer) and, when the dataset has major and minor
     copy number, the ``allele`` dendrogram (major and minor stacked). Existing ones are kept
